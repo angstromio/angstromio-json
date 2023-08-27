@@ -43,10 +43,10 @@ jobs:
         repository: angstromio/angstromio-util
         token: ${{ secrets.GITHUB_TOKEN }}
         ref: main
-        path: ${{ github.workspace }}/modules/angstromio-util
-    - name: build angstromio-util
+        path: ${{ github.workspace }}/angstromio-util
+    - name: publish angstromio-util to local maven repository
       run: ./gradlew publishToMavenLocal --no-daemon
-      working-directory: ${{ github.workspace }}/modules/angstromio-util
+      working-directory: ${{ github.workspace }}/angstromio-util
     - name: test
       run: ./gradlew clean test --no-daemon
       working-directory: ${{ github.workspace }}

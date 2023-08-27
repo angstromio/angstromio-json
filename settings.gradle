@@ -11,8 +11,4 @@ plugins {
 }
 
 rootProject.name = 'angstromio-json'
-include('lib')
-
-file('modules').listFiles().each { File moduleBuild ->
-    includeBuild moduleBuild
-}
+include 'lib'

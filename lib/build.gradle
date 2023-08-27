@@ -22,23 +22,35 @@ group 'io.angstrom'
 version '0.0.1-SNAPSHOT'
 def projectDescription = 'A "fail-slow" JSON deserializer for Kotlin data classes.'
 
-tasks.named('jar') {
-    manifest {
-        attributes('Implementation-Title': rootProject.name,
-                'Implementation-Version': project.version)
+// Apply a specific Java toolchain to ease working on different environments.
+// Can set a toolchain via the java extension, and Kotlin compilation tasks will use it,
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
     }
-    archiveBaseName.set(rootProject.name)
+    withJavadocJar()
+    withSourcesJar()
 }
 
-tasks.withType(KotlinCompile).all {
-    kotlinOptions {
-        jvmTarget = "17"
+["clean", "assemble", "test", "build"].each { taskName ->
+  tasks.named(taskName) { task ->
+    gradle.includedBuilds.each { build ->
+      dependsOn gradle.includedBuild(build.name).task(":lib:$taskName")
     }
+  }
 }
 
 tasks.named('test') {
-    // Use JUnit Platform for unit tests.
+    // Use JUnit5 Platform for unit tests.
     useJUnitPlatform()
+}
+
+tasks.named('jar') {
+    manifest {
+        attributes('Implementation-Title': rootProject.name,
+                   'Implementation-Version': project.version)
+    }
+    archiveBaseName.set(rootProject.name)
 }
 
 repositories {
@@ -59,15 +71,6 @@ dependencies {
     testImplementation 'io.kotest:kotest-runner-junit5:5.6.2'
     testImplementation 'io.kotest:kotest-assertions-core:5.6.2'
     testImplementation 'io.kotest:kotest-property:5.6.2'
-}
-
-// Apply a specific Java toolchain to ease working on different environments.
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
-    }
-    withJavadocJar()
-    withSourcesJar()
 }
 
 publishing {
