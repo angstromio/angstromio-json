@@ -17,7 +17,7 @@ build
 .mtj.tmp/
 
 # Package Files #
-*.jar
+# *.jar need gradle-wrapper.jar
 *.war
 *.nar
 *.ear
