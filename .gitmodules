@@ -1,0 +1,3 @@
+[submodule "modules/angstromio-util"]
+	path = modules/angstromio-util
+	url = git@github.com:angstromio/angstromio-util.git
