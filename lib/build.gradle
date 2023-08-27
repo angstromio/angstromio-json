@@ -41,6 +41,10 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+tasks.register('build') {
+    dependsOn gradle.includedBuilds*.task(':build')
+}
+
 repositories {
     mavenLocal()
     // Use Maven Central for resolving dependencies.
