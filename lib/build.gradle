@@ -116,9 +116,6 @@ publishing {
     }
     repositories {
         mavenLocal()
-        maven {
-            url project.file("../local-repo")
-        }
         mavenCentral()
     }
 }
