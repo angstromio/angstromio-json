@@ -22,6 +22,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: dump/context
+      env:
+        GITHUB_CONTEXT: ${{ toJson(github) }}
+      run: echo "$GITHUB_CONTEXT"
     - uses: actions/checkout@v3
       with:
         submodules: 'true'
@@ -34,7 +38,7 @@ jobs:
         cache: 'gradle'
     - name: Build dependency
       run: ./gradlew publishToMavenLocal
-      working-directory: ${{ github.workspace }}/angstromio-json/modules/angstromio-util
+      working-directory: ${{ github.workspace }}/modules/angstromio-util
     - name: Build with Gradle
       uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
       with:
