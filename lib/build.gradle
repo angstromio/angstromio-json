@@ -41,7 +41,7 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
-tasks.register('build') {
+tasks.named('build') {
     dependsOn gradle.includedBuilds*.task(':build')
 }
 
