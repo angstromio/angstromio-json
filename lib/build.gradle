@@ -41,10 +41,6 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
-tasks.named('compileJava') {
-    dependsOn gradle.includedBuilds*.task(':lib:publishToMavenLocal')
-}
-
 repositories {
     mavenLocal()
     // Use Maven Central for resolving dependencies.
