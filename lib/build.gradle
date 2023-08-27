@@ -37,12 +37,10 @@ tasks.withType(KotlinCompile).all {
 }
 
 tasks.named('test') {
+    dependsOn gradle.includedBuilds*.task(':lib:publishToMavenLocal')
+
     // Use JUnit Platform for unit tests.
     useJUnitPlatform()
-}
-
-tasks.named('buildNeeded') {
-    dependsOn gradle.includedBuilds*.task(':lib:publishToMavenLocal')
 }
 
 repositories {
