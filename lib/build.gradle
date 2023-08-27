@@ -92,7 +92,7 @@ publishing {
             pom {
                 name = rootProject.name
                 description = projectDescription
-                url = 'https://angstrom.io/github/angstromio/angstromio-json/'
+                url = String.format('https://angstrom.io/github/angstromio/%s/', rootProject.name)
                 licenses {
                     license {
                         name = 'The Apache License, Version 2.0'
@@ -107,9 +107,9 @@ publishing {
                     }
                 }
                 scm {
-                    connection = 'scm:git:git://github.com/angstromio/angstromio-utjsonil.git'
-                    developerConnection = 'scm:git:ssh://github.com/angstromio/angstromio-json.git'
-                    url = 'https://github.com/angstromio/angstromio-json'
+                    connection = String.format('scm:git:git://github.com/angstromio/%s.git', rootProject.name)
+                    developerConnection = String.format('scm:git:ssh://github.com/angstromio/%s.git', rootProject.name)
+                    url = String.format('https://github.com/angstromio/%s', rootProject.name)
                 }
             }
         }
