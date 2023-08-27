@@ -42,7 +42,7 @@ tasks.named('test') {
 }
 
 tasks.named('build') {
-    dependsOn gradle.includedBuilds*.task(':build')
+    dependsOn gradle.includedBuilds*.task(':lib:publishToMavenLocal')
 }
 
 repositories {
