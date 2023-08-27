@@ -41,7 +41,7 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
-tasks.named('buildNeeded') {
+tasks.named('resolvableConfigurations') {
     dependsOn gradle.includedBuilds*.task(':lib:publishToMavenLocal')
 }
 
