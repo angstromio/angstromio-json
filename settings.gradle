@@ -12,3 +12,8 @@ plugins {
 
 rootProject.name = 'angstromio-json'
 include 'lib'
+
+def util = '../angstromio-util'
+if (file(util).exists()) {
+    includeBuild util
+}
