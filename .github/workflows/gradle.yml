@@ -40,7 +40,7 @@ jobs:
     - name: checkout angstromio-util
       uses: actions/checkout@v3
       with:
-        repository: angstromio/angstrom-util
+        repository: angstromio/angstromio-util
         token: ${{ secrets.GITHUB_TOKEN }}
         ref: main
         path: ${{ github.workspace }}/modules/angstromio-util
