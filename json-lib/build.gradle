@@ -32,14 +32,6 @@ java {
     withSourcesJar()
 }
 
-["clean", "assemble", "test", "build"].each { taskName ->
-  tasks.named(taskName) { task ->
-    gradle.includedBuilds.each { build ->
-      dependsOn gradle.includedBuild(build.name).task(":lib:$taskName")
-    }
-  }
-}
-
 tasks.named('test') {
     // Use JUnit5 Platform for unit tests.
     useJUnitPlatform()
@@ -54,7 +46,6 @@ tasks.named('jar') {
 }
 
 repositories {
-    mavenLocal()
     // Use Maven Central for resolving dependencies.
     mavenCentral()
 }
@@ -114,7 +105,6 @@ publishing {
         }
     }
     repositories {
-        mavenLocal()
         mavenCentral()
     }
 }
