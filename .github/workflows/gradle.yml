@@ -43,7 +43,7 @@ jobs:
         repository: angstromio/angstromio-util
         token: ${{ secrets.GITHUB_TOKEN }}
         ref: main
-        path: ${{ github.workspace }}/angstromio-util
+        path: ${{ github.workspace }}/../angstromio-util
     - name: test
       run: ./gradlew clean test --no-daemon
       working-directory: ${{ github.workspace }}
