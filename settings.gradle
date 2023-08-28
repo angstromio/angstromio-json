@@ -13,9 +13,17 @@ plugins {
 rootProject.name = 'angstromio-json'
 include 'json-lib'
 
-def util = '../angstromio-util'
-if (file(util).exists()) {
-    includeBuild(util) {
+// For Local
+if (file('../angstromio-util').exists()) {
+    includeBuild('../angstromio-util') {
+        dependencySubstitution {
+            substitute module('io.angstrom:angstromio-util') using project(':util-lib')
+        }
+    }
+}
+// for GitHub Actions
+if (file('angstromio-util').exists()) {
+    includeBuild('angstromio-util') {
         dependencySubstitution {
             substitute module('io.angstrom:angstromio-util') using project(':util-lib')
         }
