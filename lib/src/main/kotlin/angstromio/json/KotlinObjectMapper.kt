@@ -31,6 +31,7 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.io.Reader
 import java.net.URL
+import kotlin.reflect.KClass
 
 class KotlinObjectMapper private constructor(val underlying: ObjectMapper) {
 
@@ -42,19 +43,35 @@ class KotlinObjectMapper private constructor(val underlying: ObjectMapper) {
 
     inline fun <reified T: Any> parse(p: JsonParser): T = underlying.readValue(p, T::class.java)
 
+    fun <T: Any> parse(p: JsonParser, clazz: KClass<T>): T = underlying.readValue(p, clazz.java)
+
     inline fun <reified T: Any> parse(f: File): T = underlying.readValue(f, T::class.java)
+
+    fun <T: Any> parse(f: File, clazz: KClass<T>): T = underlying.readValue(f, clazz.java)
 
     inline fun <reified T: Any> parse(u: URL): T = underlying.readValue(u, T::class.java)
 
+    fun <T: Any> parse(u: URL, clazz: KClass<T>): T = underlying.readValue(u, clazz.java)
+
     inline fun <reified T: Any> parse(s: String): T = underlying.readValue(s, T::class.java)
+
+    fun <T: Any> parse(s: String, clazz: KClass<T>): T = underlying.readValue(s, clazz.java)
 
     inline fun <reified T: Any> parse(r: Reader): T = underlying.readValue(r, T::class.java)
 
+    fun <T: Any> parse(r: Reader, clazz: KClass<T>): T = underlying.readValue(r, clazz.java)
+
     inline fun <reified T: Any> parse(i: InputStream): T = underlying.readValue(i, T::class.java)
+
+    fun <T: Any> parse(i: InputStream, clazz: KClass<T>): T = underlying.readValue(i, clazz.java)
 
     inline fun <reified T: Any> parse(b: Array<Byte>): T = underlying.readValue(b.toByteArray(), T::class.java)
 
+    fun <T: Any> parse(b: Array<Byte>, clazz: KClass<T>): T = underlying.readValue(b.toByteArray(), clazz.java)
+
     inline fun <reified T: Any> parse(d: DataInput): T = underlying.readValue(d, T::class.java)
+
+    fun <T: Any> parse(d: DataInput, clazz: KClass<T>): T = underlying.readValue(d, clazz.java)
 
     /** toValueType should be a T */
     inline fun <reified T: Any> convert(from: Any, toValueType: JavaType): Any {
