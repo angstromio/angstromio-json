@@ -311,7 +311,7 @@ internal class DataClassField(
             DataClassFieldMappingException.PropertyPath.leaf(fieldInfoAttributeName),
             DataClassFieldMappingException.Reason(
                 message,
-                DataClassFieldMappingException.RequiredFieldMissing
+                DataClassFieldMappingException.Detail.RequiredFieldMissing
             )
         )
     }
