@@ -8,21 +8,20 @@ data class DataClassFieldMappingException(
     val reason: Reason
 ) : JsonMappingException(null, reason.message) {
 
-    sealed interface Detail
-
-    data object Unspecified : Detail
-    data object RequiredFieldMissing : Detail
+    sealed interface Detail {
+        data object Unspecified : Detail
+        data object RequiredFieldMissing : Detail
+    }
 
     data class ValidationError(
         val violation: Any,
         val location: Location,
         val payload: Any?
     ) : Detail {
-        companion object {
-            sealed interface Location
-            data object Field : Location
-            data object Method : Location
-        }
+            sealed interface Location {
+                data object Field : Location
+                data object Method : Location
+            }
     }
 
     data class JsonProcessingError(val cause: JsonProcessingException): Detail
@@ -30,7 +29,7 @@ data class DataClassFieldMappingException(
 
     data class Reason(
         val message: String?,
-        val detail: Detail = Unspecified
+        val detail: Detail = Detail.Unspecified
     )
 
     data class PropertyPath(val names: List<String>) {
