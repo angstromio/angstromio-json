@@ -107,14 +107,14 @@ publishing {
                 licenses {
                     license {
                         name = 'The Apache License, Version 2.0'
-                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                        url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
                     }
                 }
                 developers {
                     developer {
-                        id = 'cacoco'
-                        name = 'Christopher Coco'
-                        email = 'cacoco@angstrom.io'
+                        id = 'angstromio'
+                        name = 'ångström.io'
+                        email = 'github@angstrom.io'
                     }
                 }
                 scm {
