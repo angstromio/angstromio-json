@@ -2,9 +2,9 @@ package angstromio.json.deserializer
 
 import angstromio.json.deserializer.DataClassBeanProperty.Companion.newBeanProperty
 import angstromio.json.exceptions.DataClassFieldMappingException
-import angstromio.util.extensions.head
-import angstromio.util.extensions.tail
-import angstromio.util.extensions.toCamelCase
+import angstromio.util.extensions.Lists.head
+import angstromio.util.extensions.Lists.tail
+import angstromio.util.extensions.Strings.toCamelCase
 import angstromio.util.reflect.Annotations
 import com.fasterxml.jackson.annotation.JacksonInject
 import com.fasterxml.jackson.annotation.JsonIgnore
@@ -339,13 +339,13 @@ internal class DataClassField(
         annotation: Annotation?
     ): Pair<String, String>? {
         return if (annotation != null && Annotations.isAnnotationPresent<JacksonInject>(annotation)) {
-            val name: String = Annotations.getValueIfAnnotatedWith<JacksonInject>(annotation) ?: fieldName
-            Pair(annotation.annotationClass.simpleName.toCamelCase(), name)
+            val name: String =
+                Annotations.getValueIfAnnotatedWith<JacksonInject>(annotation) ?: fieldName
+            Pair(annotation.annotationClass.simpleName.toCamelCase()!!, name)
         } else null
     }
 
     companion object {
-
         fun createFields(
             kClazz: KClass<*>,
             constructor: Executable,
