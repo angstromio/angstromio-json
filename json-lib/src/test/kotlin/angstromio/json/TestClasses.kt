@@ -47,7 +47,7 @@ data class BasicDate(
     val day: Int,
     val year: Int,
     val weekday: Weekday)
-data class WithOptionalScalaEnumeration(val month: Month?)
+data class WithOptionalEnum(val month: Month?)
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")
 @JsonSubTypes(*arrayOf(JsonSubTypes.Type(value = Rectangle::class, name = "rectangle"), JsonSubTypes.Type(value = Circle::class, name = "circle")))

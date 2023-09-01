@@ -291,8 +291,8 @@ class KotlinObjectMapper private constructor(val underlying: ObjectMapper) {
      * Method for registering a module that can extend functionality provided by this mapper; for
      * example, by adding providers for custom serializers and deserializers.
      *
-     * @note this mutates the [[underlying]] [[com.fasterxml.jackson.databind.ObjectMapper]] of
-     *       this [[ScalaObjectMapper]].
+     * @note this mutates the [underlying] [com.fasterxml.jackson.databind.ObjectMapper] of
+     *       this [KotlinObjectMapper].
      *
      * @param module [[com.fasterxml.jackson.databind.Module]] to register.
      */
