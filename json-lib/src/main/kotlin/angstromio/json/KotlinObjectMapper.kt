@@ -116,7 +116,7 @@ class KotlinObjectMapper private constructor(val underlying: ObjectMapper) {
         val validator: Any? = DEFAULT_VALIDATOR,
         val additionalJacksonModules: List<Module> = DEFAULT_ADDITIONAL_JACKSON_MODULES,
         val additionalMapperConfigurationFns: List<(ObjectMapper) -> Unit> = emptyList(),
-        val validation: Boolean = DEFAULT_VALIDATION
+        val validation: Boolean = DEFAULT_ENABLE_VALIDATION
     ) {
 
         /* Public */
@@ -200,7 +200,7 @@ class KotlinObjectMapper private constructor(val underlying: ObjectMapper) {
          * Configure a "DataClassValidator" for this [Builder]
          * @see [KotlinObjectMapper.DEFAULT_VALIDATOR]
          *
-         * @note If you pass `withNoValidation` to the builder all case class validations will be
+         * @note If you pass `withNoValidation` to the builder all validations will be
          *       bypassed, regardless of the `withValidator` configuration.
          */
         fun withValidator(validator: Any): Builder =
@@ -225,10 +225,10 @@ class KotlinObjectMapper private constructor(val underlying: ObjectMapper) {
             this.copy(defaultJacksonModules = defaultJacksonModules)
 
         /**
-         * Disable case class validation during data class deserialization
+         * Disable validation during data class deserialization
          *
-         * @see [KotlinObjectMapper.DEFAULT_VALIDATION]
-         * @note If you pass `withNoValidation` to the builder all case class validations will be
+         * @see [KotlinObjectMapper.DEFAULT_ENABLE_VALIDATION]
+         * @note If you pass `withNoValidation` to the builder all validations will be
          *       bypassed, regardless of the `withValidator` configuration.
          */
         fun withNoValidation(): Builder = this.copy(validation = false)
@@ -336,8 +336,8 @@ class KotlinObjectMapper private constructor(val underlying: ObjectMapper) {
         /** The default for configuring additional modules on the underlying [ObjectMapper] */
         private val DEFAULT_ADDITIONAL_JACKSON_MODULES: List<Module> = emptyList()
 
-        /** The default setting to enable case class validation during case class deserialization */
-        private const val DEFAULT_VALIDATION: Boolean = true
+        /** The default setting to enable validation during data class deserialization */
+        private const val DEFAULT_ENABLE_VALIDATION: Boolean = true
 
         private val ArrayElementsOnNewLinesPrettyPrinter: DefaultPrettyPrinter =
             DefaultPrettyPrinter().withArrayIndenter(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE)

@@ -67,7 +67,7 @@ internal class DataClassDeserializer<T : Any>(
     init {
         // nested class inside another class is not supported, e.g., we do not support
         // use of creators for non-static inner classes,
-        assert(!beanDescription.isNonStaticInnerClass) { "Non-static inner case classes are not supported." }
+        assert(!beanDescription.isNonStaticInnerClass) { "Non-static inner data classes are not supported." }
     }
 
     private val clazz: Class<out Any> = javaType.rawClass
@@ -226,6 +226,7 @@ internal class DataClassDeserializer<T : Any>(
                         validator.map(_.describeMethods(clazz)*/
                     )
                 )
+
             else ->
                 // check clazz
                 if (fromClazz != null) {
@@ -237,9 +238,7 @@ internal class DataClassDeserializer<T : Any>(
                         validator.map(_.describeMethods(clazz))*/
                     )
                 } else {
-                    // try to use what Jackson thinks is the default -- however Jackson does not
-                    // seem to correctly track an empty default constructor for case classes, nor
-                    // multiple un-annotated, and we have no way to pick a proper constructor, so we bail
+                    // try to use what Jackson thinks is the default
                     val constructor: AnnotatedConstructor =
                         beanDescription.classInfo.defaultConstructor ?: findAnnotatedConstructor(beanDescription)
                     DataClassCreator(
@@ -264,10 +263,10 @@ internal class DataClassDeserializer<T : Any>(
     ): AnnotatedConstructor {
         val paramAnnotationMaps: List<AnnotationMap> =
             constructor.parameters.map { it.annotations }.map { parameterAnnotations ->
-                    val parameterAnnotationMap = AnnotationMap()
-                    parameterAnnotations.map { parameterAnnotationMap.add(it) }
-                    parameterAnnotationMap
-                }
+                val parameterAnnotationMap = AnnotationMap()
+                parameterAnnotations.map { parameterAnnotationMap.add(it) }
+                parameterAnnotationMap
+            }
 
         val annotationMap = AnnotationMap()
         annotations.map { annotationMap.add(it) }
@@ -379,7 +378,9 @@ internal class DataClassDeserializer<T : Any>(
                     field, DataClassFieldMappingException(
                         DataClassFieldMappingException.PropertyPath.leaf(field.name),
                         DataClassFieldMappingException.Reason(
-                            "'${e.value}' is not a valid ${Types.wrapperType(e.targetType).getSimpleName()}${validValuesString(e)}", DataClassFieldMappingException.JsonProcessingError(e)
+                            "'${e.value}' is not a valid ${
+                                Types.wrapperType(e.targetType).getSimpleName()
+                            }${validValuesString(e)}", DataClassFieldMappingException.JsonProcessingError(e)
                         )
                     ), constructorValues, constructorValuesIdx, errors
                 )
@@ -388,7 +389,9 @@ internal class DataClassDeserializer<T : Any>(
                     field, DataClassFieldMappingException(
                         DataClassFieldMappingException.PropertyPath.leaf(field.name),
                         DataClassFieldMappingException.Reason(
-                            "'${jsonNode.asText("")}' is not a valid ${Types.wrapperType(e.targetType).getSimpleName()}${validValuesString(e)}", DataClassFieldMappingException.JsonProcessingError(e)
+                            "'${jsonNode.asText("")}' is not a valid ${
+                                Types.wrapperType(e.targetType).getSimpleName()
+                            }${validValuesString(e)}", DataClassFieldMappingException.JsonProcessingError(e)
                         )
                     ), constructorValues, constructorValuesIdx, errors
                 )
@@ -406,22 +409,20 @@ internal class DataClassDeserializer<T : Any>(
                         )
                     ), constructorValues, constructorValuesIdx, errors
                 )
-//            } catch (e: java.util.NoSuchElementException) {
-//                if isScalaEnumerationType(field) =>
-//                // Scala enumeration mapping issue
-//                addException(
-//                    field,
-//                    DataClassFieldMappingException(
-//                        DataClassFieldMappingException.PropertyPath.leaf(field.name),
-//                        DataClassFieldMappingException.Reason(e.getMessage)
-//                    ),
-//                    constructorValues,
-//                    constructorValuesIdx,
-//                    errors
-//                )
-//            } catch (e: InjectableValuesException) {
-//                // we rethrow, to prevent leaking internal injection detail in the "errors" array
-//                throw e
+            } catch (e: java.util.NoSuchElementException) {
+                if (field.javaType.rawClass.isEnum) {
+                    // enumeration mapping issue
+                    addException(
+                        field,
+                        DataClassFieldMappingException(
+                            DataClassFieldMappingException.PropertyPath.leaf(field.name),
+                            DataClassFieldMappingException.Reason(e.message)
+                        ),
+                        constructorValues,
+                        constructorValuesIdx,
+                        errors
+                    )
+                } else throw e
             } catch (e: Exception) {
                 if (isNonFatal(e))
                 //log.error("Unexpected exception parsing field: $field", e)
@@ -429,7 +430,6 @@ internal class DataClassDeserializer<T : Any>(
             }
             constructorValuesIdx += 1
         }
-
 
         return Pair(constructorValues.toList(), errors.toList())
     }
@@ -509,7 +509,7 @@ internal class DataClassDeserializer<T : Any>(
 
             val parameterJavaType =
                 if (kotlinType.jvmErasure.java.typeParameters.isNotEmpty() &&
-                    shouldFullyDefineParameterizedType(kotlinType,parameter)
+                    shouldFullyDefineParameterizedType(kotlinType, parameter)
                 ) {
                     // what types are bound to the generic data class parameters
                     val boundTypeParameters: Array<JavaType> =
@@ -524,9 +524,9 @@ internal class DataClassDeserializer<T : Any>(
 
             val annotatedParameter = newAnnotatedParameter(
                 typeResolutionContext =
-                    TypeResolutionContext.Basic(
-                        config.typeFactory, javaType.bindings
-                    ), // use the TypeBindings from the top-level JavaType, not the parameter JavaType
+                TypeResolutionContext.Basic(
+                    config.typeFactory, javaType.bindings
+                ), // use the TypeBindings from the top-level JavaType, not the parameter JavaType
                 owner = annotatedWithParams,
                 annotations = annotatedWithParams.getParameterAnnotations(index),
                 javaType = parameterJavaType,
@@ -536,7 +536,11 @@ internal class DataClassDeserializer<T : Any>(
             propertyDefinitions[index] =
                 PropertyDefinition(
                     parameterJavaType,
-                    SimpleBeanPropertyDefinition.construct(config, annotatedParameter, PropertyName(constructorParamDescriptor.name))
+                    SimpleBeanPropertyDefinition.construct(
+                        config,
+                        annotatedParameter,
+                        PropertyName(constructorParamDescriptor.name)
+                    )
                 )
         }
         return propertyDefinitions.map { it!! }.toTypedArray()
