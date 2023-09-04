@@ -21,11 +21,25 @@ if (file('../angstromio-util').exists()) {
         }
     }
 }
+if (file('../angstromio-validator').exists()) {
+    includeBuild('../angstromio-validator') {
+        dependencySubstitution {
+            substitute module('io.angstrom:angstromio-validator') using project(':validator-lib')
+        }
+    }
+}
 // for GitHub Actions
 if (file('angstromio-util').exists()) {
     includeBuild('angstromio-util') {
         dependencySubstitution {
             substitute module('io.angstrom:angstromio-util') using project(':util-lib')
+        }
+    }
+}
+if (file('angstromio-validator').exists()) {
+    includeBuild('angstromio-validator') {
+        dependencySubstitution {
+            substitute module('io.angstrom:angstromio-validator') using project(':validator-lib')
         }
     }
 }
