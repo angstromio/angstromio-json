@@ -1,5 +1,6 @@
 package angstromio.json
 
+import angstromio.validation.DataClassValidator
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.core.JsonFactory
 import com.fasterxml.jackson.core.JsonFactoryBuilder
@@ -113,7 +114,7 @@ class KotlinObjectMapper private constructor(val underlying: ObjectMapper) {
         val serializationConfig: Map<SerializationFeature, Boolean> = DEFAULT_SERIALIZATION_CONFIG,
         val deserializationConfig: Map<DeserializationFeature, Boolean> = DEFAULT_DESERIALIZATION_CONFIG,
         val defaultJacksonModules: List<Module> = DEFAULT_JACKSON_MODULES,
-        val validator: Any? = DEFAULT_VALIDATOR,
+        val validator: DataClassValidator? = DEFAULT_VALIDATOR,
         val additionalJacksonModules: List<Module> = DEFAULT_ADDITIONAL_JACKSON_MODULES,
         val additionalMapperConfigurationFns: List<(ObjectMapper) -> Unit> = emptyList(),
         val validation: Boolean = DEFAULT_ENABLE_VALIDATION
@@ -203,7 +204,7 @@ class KotlinObjectMapper private constructor(val underlying: ObjectMapper) {
          * @note If you pass `withNoValidation` to the builder all validations will be
          *       bypassed, regardless of the `withValidator` configuration.
          */
-        fun withValidator(validator: Any): Builder =
+        fun withValidator(validator: DataClassValidator): Builder =
             this.copy(validator = validator)
 
         /**
@@ -301,7 +302,7 @@ class KotlinObjectMapper private constructor(val underlying: ObjectMapper) {
 
     companion object {
         /** The default 'DataClassValidator' for a [KotlinObjectMapper] */
-        private val DEFAULT_VALIDATOR: Any = Any()
+        private val DEFAULT_VALIDATOR: DataClassValidator = DataClassValidator()
 
         /** The default [JsonWriteFeature.WRITE_NUMBERS_AS_STRINGS] setting */
         private const val DEFAULT_NUMBERS_AS_STRINGS: Boolean = false

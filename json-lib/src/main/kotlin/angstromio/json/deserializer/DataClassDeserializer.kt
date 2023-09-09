@@ -4,8 +4,13 @@ import angstromio.json.deserializer.DataClassBeanProperty.Companion.newAnnotated
 import angstromio.json.exceptions.DataClassFieldMappingException
 import angstromio.json.exceptions.DataClassMappingException
 import angstromio.util.control.NonFatal.isNonFatal
-import angstromio.util.extensions.getConstructorAnnotations
+import angstromio.util.extensions.Annotations.getConstructorAnnotations
+import angstromio.util.extensions.Annotations.merge
+import angstromio.util.extensions.Nulls.mapNotNull
 import angstromio.util.reflect.Annotations
+import angstromio.validation.DataClassValidator
+import angstromio.validation.extensions.getDynamicPayload
+import angstromio.validation.extensions.getLeafNode
 import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.core.JsonFactory
@@ -24,16 +29,21 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.PropertyName
 import com.fasterxml.jackson.databind.PropertyNamingStrategy
 import com.fasterxml.jackson.databind.annotation.JsonNaming
+import com.fasterxml.jackson.databind.exc.InvalidDefinitionException
 import com.fasterxml.jackson.databind.exc.InvalidFormatException
 import com.fasterxml.jackson.databind.exc.MismatchedInputException
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException
 import com.fasterxml.jackson.databind.introspect.AnnotatedConstructor
 import com.fasterxml.jackson.databind.introspect.AnnotatedMethod
 import com.fasterxml.jackson.databind.introspect.AnnotatedWithParams
-import com.fasterxml.jackson.databind.introspect.AnnotationMap
 import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition
 import com.fasterxml.jackson.databind.introspect.TypeResolutionContext
 import com.fasterxml.jackson.databind.util.SimpleBeanPropertyDefinition
+import jakarta.validation.ConstraintViolation
+import jakarta.validation.Payload
+import jakarta.validation.ValidationException
+import jakarta.validation.Validator
+import jakarta.validation.metadata.BeanDescriptor
 import java.lang.reflect.Constructor
 import java.lang.reflect.Executable
 import java.lang.reflect.InvocationTargetException
@@ -43,7 +53,6 @@ import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Type
 import java.lang.reflect.TypeVariable
 import kotlin.reflect.KClass
-import kotlin.reflect.KFunction
 import kotlin.reflect.KParameter
 import kotlin.reflect.KType
 import kotlin.reflect.full.companionObject
@@ -51,18 +60,16 @@ import kotlin.reflect.full.declaredFunctions
 import kotlin.reflect.full.hasAnnotation
 import kotlin.reflect.full.memberFunctions
 import kotlin.reflect.full.primaryConstructor
-import kotlin.reflect.jvm.javaConstructor
 import kotlin.reflect.jvm.jvmErasure
 
-internal class DataClassDeserializer<T : Any>(
-    jt: JavaType?,
-    cfg: DeserializationConfig?,
-    bd: BeanDescription?,
-    validator: Any?
+@Suppress("UNCHECKED_CAST")
+internal class DataClassDeserializer(
+    type: JavaType?, cfg: DeserializationConfig?, beanDesc: BeanDescription?, private val validator: Validator?
 ) : JsonDeserializer<Any>() {
-    private val javaType: JavaType = jt!!
+    // these should not actually be null
+    private val javaType: JavaType = type!!
     private val config: DeserializationConfig = cfg!!
-    private val beanDescription: BeanDescription = bd!!
+    private val beanDescription: BeanDescription = beanDesc!!
 
     init {
         // nested class inside another class is not supported, e.g., we do not support
@@ -72,44 +79,42 @@ internal class DataClassDeserializer<T : Any>(
 
     private val clazz: Class<out Any> = javaType.rawClass
     private val kClazz: KClass<out Any> by lazy { clazz::kotlin.get() }
-    private val mixinClazz: KClass<*>? = config.findMixInClassFor(clazz)?.let {
-        if (it.isPrimitive) null
-        else it.kotlin
+
+    private val mixinClazz: Class<*>? = config.findMixInClassFor(clazz)
+    private val clazzAnnotations: Array<Annotation> = when (mixinClazz) {
+        null -> clazz.annotations
+        else -> mixinClazz.annotations.merge(clazz.annotations)
     }
-    private val clazzAnnotations: List<Annotation> =
-        when (mixinClazz) {
-            null -> kClazz.annotations
-            else -> kClazz.annotations + mixinClazz.annotations
-        }
     private val dataClazzCreator: DataClassCreator = getDataClassCreator()
 
     // all class annotations -- including inherited annotations for fields
     // use the carried type in order to find the appropriate constructor by the
     // unresolved types -- e.g., before we resolve generic types to their bound type
-    private val allAnnotations: Map<String, List<Annotation>> =
-        kClazz.getConstructorAnnotations(dataClazzCreator.propertyDefinitions.map { it.type.rawClass.kotlin })
+    private val allAnnotations: Map<String, Array<Annotation>> =
+        clazz.getConstructorAnnotations(dataClazzCreator.propertyDefinitions.map { it.type.rawClass }.toTypedArray())
 
     // support for reading annotations from Jackson Mix-ins
     // see: https://github.com/FasterXML/jackson-docs/wiki/JacksonMixInAnnotations
-    private val allMixinAnnotations: Map<String, List<Annotation>> =
-        mixinClazz?.memberFunctions?.associate { it.name to it.annotations } ?: emptyMap()
+    private val allMixinAnnotations: Map<String, Array<Annotation>> =
+        mixinClazz?.kotlin?.memberFunctions?.associate { it.name to it.annotations.toTypedArray() } ?: emptyMap()
 
-    // optimized lookup of bean property definition annotations
-    private fun getBeanPropertyDefinitionAnnotations(beanPropertyDefinition: BeanPropertyDefinition): List<Annotation> {
+    private fun getBeanPropertyDefinitionAnnotations(beanPropertyDefinition: BeanPropertyDefinition): Array<Annotation> {
         return if (beanPropertyDefinition.primaryMember.allAnnotations.size() > 0) {
-            beanPropertyDefinition.primaryMember.allAnnotations.annotations().toList()
-        } else emptyList()
+            // TODO("can we optimize to not have the toList call here?")
+            val list = beanPropertyDefinition.primaryMember.allAnnotations.annotations().toList()
+            Array(list.size) { index -> list[index] }
+        } else emptyArray()
     }
 
     // Field name to list of parsed annotations. Jackson only tracks JacksonAnnotations
     // in the BeanPropertyDefinition AnnotatedMembers, and we want to track all class annotations by field.
     // Annotations are keyed by parameter name because the logic collapses annotations from the
     // inheritance hierarchy where the discriminator is member name.
-    private val fieldAnnotations: Map<String, List<Annotation>> = getFieldAnnotations()
-    private fun getFieldAnnotations(): Map<String, List<Annotation>> {
+    private val fieldAnnotations: Map<String, Array<Annotation>> = getFieldAnnotations()
+    private fun getFieldAnnotations(): Map<String, Array<Annotation>> {
         val fieldBeanPropertyDefinitions: List<BeanPropertyDefinition> =
             dataClazzCreator.propertyDefinitions.map { it.beanPropertyDefinition }
-        val collectedFieldAnnotations = hashMapOf<String, List<Annotation>>()
+        val collectedFieldAnnotations = hashMapOf<String, Array<Annotation>>()
         var index = 0
         while (index < fieldBeanPropertyDefinitions.size) {
             val fieldBeanPropertyDefinition = fieldBeanPropertyDefinitions[index]
@@ -120,9 +125,11 @@ internal class DataClassDeserializer<T : Any>(
             // and thus the annotations may not exist in the `allAnnotations` Map, so we default to
             // any carried bean property definition annotations which includes annotation information
             // for any static or secondary constructor.
-            val annotations: List<Annotation> =
-                allAnnotations.getOrElse(fieldName) { getBeanPropertyDefinitionAnnotations(fieldBeanPropertyDefinition) } +
-                        allMixinAnnotations.getOrElse(fieldName) { emptyList() }
+            val a: Array<Annotation> = allAnnotations.getOrElse(fieldName) {
+                getBeanPropertyDefinitionAnnotations(fieldBeanPropertyDefinition)
+            }
+            val b: Array<Annotation> = allMixinAnnotations.getOrElse(fieldName) { emptyArray() }
+            val annotations: Array<Annotation> = a.merge(b)
             if (annotations.isNotEmpty()) collectedFieldAnnotations[fieldName] = annotations
             index += 1
         }
@@ -196,15 +203,20 @@ internal class DataClassDeserializer<T : Any>(
         handleUnknownFields(jsonParser, context, jsonFieldNames, dataClassFieldNames)
         val (values, parseErrors) = parseConstructorValues(jsonParser, context, jsonNode)
 
-//        // run field validations
-//        val validationErrors = executeFieldValidations(
-//            validator,
-//            caseClazzCreator.executableValidationDescription,
-//            config,
-//            values,
-//            fields)
+        // run field validations
+        val results = mutableListOf<DataClassFieldMappingException>()
+        dataClassFieldNames.mapIndexed { index, fieldName ->
+            val value = values[index]
+            results.addAll(
+                executeFieldValidations(
+                    validator, config, clazz, fieldName, value
+                )
+            )
+        }
+        val validationErrors = results.toList()
 
-        if (parseErrors.isNotEmpty()) throw DataClassMappingException(parseErrors.toSet())
+        val errors = parseErrors + validationErrors
+        if (errors.isNotEmpty()) throw DataClassMappingException(errors.toSet())
 
         return newInstance(values)
     }
@@ -215,38 +227,25 @@ internal class DataClassDeserializer<T : Any>(
         val fromClazz: AnnotatedConstructor? =
             beanDescription.constructors.find { it.hasAnnotation(JsonCreator::class.java) }
         return when {
-            fromCompanion != null ->
-                DataClassCreator(
-                    fromCompanion.annotated,
-                    getBeanPropertyDefinitions(
-                        fromCompanion.annotated.parameters,
-                        fromCompanion,
-                        fromCompanion = true/*,
-                        validator.map(_.describeExecutable(fromCompanion.getAnnotated, mixinClazz)),
-                        validator.map(_.describeMethods(clazz)*/
-                    )
-                )
+            fromCompanion != null -> {
+                DataClassCreator(fromCompanion.annotated, getBeanPropertyDefinitions(
+                    fromCompanion.annotated.parameters, fromCompanion, fromCompanion = true
+                ), validator.mapNotNull { it.getConstraintsForClass(clazz) })
+            }
 
             else ->
                 // check clazz
                 if (fromClazz != null) {
-                    DataClassCreator(
-                        fromClazz.annotated,
-                        getBeanPropertyDefinitions(fromClazz.annotated.parameters, fromClazz)
-                        /*,
-                        validator.map(_.describeExecutable(fromClazz.annotated, mixinClazz)),
-                        validator.map(_.describeMethods(clazz))*/
-                    )
+                    DataClassCreator(fromClazz.annotated,
+                        getBeanPropertyDefinitions(fromClazz.annotated.parameters, fromClazz),
+                        validator.mapNotNull { it.getConstraintsForClass(clazz) })
                 } else {
                     // try to use what Jackson thinks is the default
                     val constructor: AnnotatedConstructor =
                         beanDescription.classInfo.defaultConstructor ?: findAnnotatedConstructor(beanDescription)
-                    DataClassCreator(
-                        constructor.annotated,
-                        getBeanPropertyDefinitions(constructor.annotated.parameters, constructor)/*,
-                        validator.map(_.describeExecutable(constructor.annotated, mixinClazz)),
-                        validator.map(_.describeMethods(clazz)*/
-                    )
+                    DataClassCreator(constructor.annotated,
+                        getBeanPropertyDefinitions(constructor.annotated.parameters, constructor),
+                        validator.mapNotNull { it.getConstraintsForClass(clazz) })
                 }
         }
     }
@@ -254,28 +253,7 @@ internal class DataClassDeserializer<T : Any>(
     private fun findAnnotatedConstructor(beanDescription: BeanDescription): AnnotatedConstructor {
         val constructors = beanDescription.classInfo.constructors
         assert(constructors.size == 1) { "Multiple data class constructors not supported" }
-//        return annotateConstructor(constructors.first(), clazzAnnotations.toList())
         return constructors.first()
-    }
-
-    private fun annotateConstructor(
-        constructor: KFunction<Class<*>>, annotations: List<Annotation>
-    ): AnnotatedConstructor {
-        val paramAnnotationMaps: List<AnnotationMap> =
-            constructor.parameters.map { it.annotations }.map { parameterAnnotations ->
-                val parameterAnnotationMap = AnnotationMap()
-                parameterAnnotations.map { parameterAnnotationMap.add(it) }
-                parameterAnnotationMap
-            }
-
-        val annotationMap = AnnotationMap()
-        annotations.map { annotationMap.add(it) }
-        return AnnotatedConstructor(
-            TypeResolutionContext.Basic(config.typeFactory, javaType.bindings),
-            constructor.javaConstructor,
-            annotationMap,
-            paramAnnotationMaps.toTypedArray()
-        )
     }
 
     /** Return all "unknown" properties sent in the incoming JSON */
@@ -347,10 +325,8 @@ internal class DataClassDeserializer<T : Any>(
     }
 
     private fun parseConstructorValues(
-        jsonParser: JsonParser,
-        context: DeserializationContext,
-        jsonNode: JsonNode
-    ): Pair<List<Any?>, List<DataClassFieldMappingException>> {/* Mutable Fields */
+        jsonParser: JsonParser, context: DeserializationContext, jsonNode: JsonNode
+    ): Pair<List<Any?>, List<DataClassFieldMappingException>> {
         var constructorValuesIdx = 0
         val errors = mutableListOf<DataClassFieldMappingException>()
         val constructorValues = mutableListOf<Any?>()
@@ -413,20 +389,14 @@ internal class DataClassDeserializer<T : Any>(
                 if (field.javaType.rawClass.isEnum) {
                     // enumeration mapping issue
                     addException(
-                        field,
-                        DataClassFieldMappingException(
+                        field, DataClassFieldMappingException(
                             DataClassFieldMappingException.PropertyPath.leaf(field.name),
                             DataClassFieldMappingException.Reason(e.message)
-                        ),
-                        constructorValues,
-                        constructorValuesIdx,
-                        errors
+                        ), constructorValues, constructorValuesIdx, errors
                     )
                 } else throw e
             } catch (e: Exception) {
-                if (isNonFatal(e))
-                //log.error("Unexpected exception parsing field: $field", e)
-                    throw e
+                if (isNonFatal(e)) throw e // TODO("log exception in error here")
             }
             constructorValuesIdx += 1
         }
@@ -465,29 +435,23 @@ internal class DataClassDeserializer<T : Any>(
                 else -> throw e
             }
         }
-//        val methodValidationErrors =
-//            executeMethodValidations(
-//                validator,
-//                caseClazzCreator.executableValidationMethodDescriptions,
-//                config,
-//                obj
-//            )
-//        if (methodValidationErrors.nonEmpty)
-//            throw DataClassMappingException(methodValidationErrors.toSet)
+        val postConstructValidationErrors = executePostConstructValidations(
+            validator, config, obj
+        )
+        if (postConstructValidationErrors.isNotEmpty()) throw DataClassMappingException(postConstructValidationErrors.toSet())
 
         return obj
     }
 
-    private fun instantiate(constructorValues: List<Any?>): Any =
-        when (val executable = dataClazzCreator.executable) {
-            is Method ->
-                // if the creator is of type Method, we assume the need to invoke the companion object
-                executable.invoke(kClazz.primaryConstructor, *constructorValues.toTypedArray())
+    private fun instantiate(constructorValues: List<Any?>): Any = when (val executable = dataClazzCreator.executable) {
+        is Method ->
+            // if the creator is of type Method, we assume the need to invoke the companion object
+            executable.invoke(kClazz.primaryConstructor, *constructorValues.toTypedArray())
 
-            is Constructor<*> ->
-                // otherwise simply invoke the constructor
-                executable.newInstance(*constructorValues.toTypedArray())
-        }
+        is Constructor<*> ->
+            // otherwise simply invoke the constructor
+            executable.newInstance(*constructorValues.toTypedArray())
+    }
 
     /* in order to deal with parameterized types we create a JavaType here and carry it */
     private fun getBeanPropertyDefinitions(
@@ -495,10 +459,15 @@ internal class DataClassDeserializer<T : Any>(
     ): Array<PropertyDefinition> {
         val constructorParameters = if (fromCompanion) {
             val kFunction = kClazz.companionObject?.declaredFunctions?.find { it.hasAnnotation<JsonCreator>() }
-            kFunction!!.parameters.filter { it.kind == KParameter.Kind.VALUE }
+            kFunction?.parameters?.filter { it.kind == KParameter.Kind.VALUE }
         } else {
             // need to find the description which carries the full type information
-            kClazz.primaryConstructor!!.parameters
+            kClazz.primaryConstructor?.parameters
+        }
+        if (constructorParameters == null) {
+            throw InvalidDefinitionException.from(
+                EmptyJsonParser, "Unable to locate suitable constructor for class: ${clazz.name}", javaType
+            )
         }
 
         if (constructorParameters.size != parameters.size) throw IllegalArgumentException("")
@@ -508,23 +477,22 @@ internal class DataClassDeserializer<T : Any>(
             val kotlinType: KType = constructorParamDescriptor.type
 
             val parameterJavaType =
-                if (kotlinType.jvmErasure.java.typeParameters.isNotEmpty() &&
-                    shouldFullyDefineParameterizedType(kotlinType, parameter)
+                if (kotlinType.jvmErasure.java.typeParameters.isNotEmpty() && shouldFullyDefineParameterizedType(
+                        kotlinType,
+                        parameter
+                    )
                 ) {
                     // what types are bound to the generic data class parameters
                     val boundTypeParameters: Array<JavaType> =
-                        Types
-                            .parameterizedTypeNames(parameter.getParameterizedType())
+                        Types.parameterizedTypeNames(parameter.getParameterizedType())
                             .map { javaType.bindings.findBoundType(it) }.toTypedArray()
-                    Types
-                        .javaType(config.typeFactory, kotlinType, boundTypeParameters)
+                    Types.javaType(config.typeFactory, kotlinType, boundTypeParameters)
                 } else {
                     Types.javaType(config.typeFactory, kotlinType)
                 }
 
             val annotatedParameter = newAnnotatedParameter(
-                typeResolutionContext =
-                TypeResolutionContext.Basic(
+                typeResolutionContext = TypeResolutionContext.Basic(
                     config.typeFactory, javaType.bindings
                 ), // use the TypeBindings from the top-level JavaType, not the parameter JavaType
                 owner = annotatedWithParams,
@@ -533,15 +501,11 @@ internal class DataClassDeserializer<T : Any>(
                 index = index
             )
 
-            propertyDefinitions[index] =
-                PropertyDefinition(
-                    parameterJavaType,
-                    SimpleBeanPropertyDefinition.construct(
-                        config,
-                        annotatedParameter,
-                        PropertyName(constructorParamDescriptor.name)
-                    )
+            propertyDefinitions[index] = PropertyDefinition(
+                parameterJavaType, SimpleBeanPropertyDefinition.construct(
+                    config, annotatedParameter, PropertyName(constructorParamDescriptor.name)
                 )
+            )
         }
         return propertyDefinitions.map { it!! }.toTypedArray()
     }
@@ -560,9 +524,11 @@ internal class DataClassDeserializer<T : Any>(
 
         val parameterizedType = parameter.getParameterizedType()
 
-        return !kotlinType.javaClass.isPrimitive && (kotlinType.jvmErasure.typeParameters.isEmpty() || kotlinType.jvmErasure.typeParameters.first().javaClass.isAssignableFrom(
-            Any::class.java
-        )) && parameterizedType != parameter.getType() && isParameterized(parameterizedType)
+        return !kotlinType.javaClass.isPrimitive &&
+                (kotlinType.jvmErasure.typeParameters.isEmpty() ||
+                        kotlinType.jvmErasure.typeParameters.first().javaClass.isAssignableFrom(Any::class.java)) &&
+                parameterizedType != parameter.getType() &&
+                isParameterized(parameterizedType)
     }
 
     companion object {
@@ -571,9 +537,8 @@ internal class DataClassDeserializer<T : Any>(
         /* For supporting JsonCreator */
         data class DataClassCreator(
             val executable: Executable,
-            val propertyDefinitions: Array<PropertyDefinition>/*,
-            val executableValidationDescription: ExecutableDescriptor?,
-            val executableValidationMethodDescriptions: Array<MethodDescriptor>?*/
+            val propertyDefinitions: Array<PropertyDefinition>,
+            val beanDescriptor: BeanDescriptor?
         ) {
             override fun equals(other: Any?): Boolean {
                 if (this === other) return true
@@ -583,6 +548,7 @@ internal class DataClassDeserializer<T : Any>(
 
                 if (executable != other.executable) return false
                 if (!propertyDefinitions.contentEquals(other.propertyDefinitions)) return false
+                if (beanDescriptor != other.beanDescriptor) return false
 
                 return true
             }
@@ -590,6 +556,7 @@ internal class DataClassDeserializer<T : Any>(
             override fun hashCode(): Int {
                 var result = executable.hashCode()
                 result = 31 * result + propertyDefinitions.contentHashCode()
+                result = 31 * result + (beanDescriptor?.hashCode() ?: 0)
                 return result
             }
         }
@@ -601,6 +568,85 @@ internal class DataClassDeserializer<T : Any>(
         private fun applyPropertyNamingStrategy(
             config: DeserializationConfig, fieldName: String
         ): String = config.propertyNamingStrategy.nameForField(config, null, fieldName)
+
+        private fun executeFieldValidations(
+            validator: Validator?,
+            config: DeserializationConfig,
+            clazz: Class<*>,
+            fieldName:
+            String, value: Any?
+        ): List<DataClassFieldMappingException> {
+            val results = mutableListOf<DataClassFieldMappingException>()
+            if (validator != null) {
+                (validator.validateValue(clazz, fieldName, value) as Set<ConstraintViolation<Any>>).map { violation ->
+                    results.add(
+                        DataClassFieldMappingException(
+                            DataClassFieldMappingException.PropertyPath.leaf(
+                                applyPropertyNamingStrategy(config, violation.propertyPath.getLeafNode().toString())
+                            ), DataClassFieldMappingException.Reason(
+                                message = violation.message,
+                                detail = DataClassFieldMappingException.ValidationError(
+                                    violation,
+                                    DataClassFieldMappingException.ValidationError.Location.Field,
+                                    violation.getDynamicPayload(Payload::class.java)
+                                )
+                            )
+                        )
+                    )
+                }
+            }
+            return results.toList()
+        }
+
+        // We do not want to "leak" method names, so we only want to return the leaf node
+        // if the ConstraintViolation PropertyPath size is greater than 1 element.
+        private fun getPostConstructValidationViolationPropertyPath(
+            config: DeserializationConfig, violation: ConstraintViolation<*>
+        ): DataClassFieldMappingException.PropertyPath {
+            val propertyPath = violation.propertyPath
+            val iterator = propertyPath.iterator()
+            return if (iterator.hasNext()) {
+                iterator.next() // move the iterator
+                if (iterator.hasNext()) { // has another element, return the leaf
+                    DataClassFieldMappingException.PropertyPath.leaf(
+                        applyPropertyNamingStrategy(config, propertyPath.getLeafNode().toString())
+                    )
+                } else { // does not have another element, return empty
+                    DataClassFieldMappingException.PropertyPath.Empty
+                }
+            } else {
+                DataClassFieldMappingException.PropertyPath.Empty
+            }
+        }
+
+        // Validate all methods annotated with `@PostConstructValidation` defined in the deserialized data class.
+        // This is called after the data class is created.
+        internal fun executePostConstructValidations(
+            validator: Validator?, config: DeserializationConfig, obj: Any
+        ): List<DataClassFieldMappingException> {
+            return if (validator != null) {
+                try {
+                    val dataClassValidator = validator.unwrap(DataClassValidator::class.java)
+                    dataClassValidator.validatePostConstructValidationMethods(obj).map { violation ->
+                        DataClassFieldMappingException(
+                            getPostConstructValidationViolationPropertyPath(config, violation),
+                            DataClassFieldMappingException.Reason(
+                                message = violation.message, detail = DataClassFieldMappingException.ValidationError(
+                                    violation,
+                                    DataClassFieldMappingException.ValidationError.Location.Method,
+                                    violation.getDynamicPayload(Payload::class.java)
+                                )
+                            )
+                        )
+                    }
+                } catch (e: ValidationException) {
+                    // PostConstructValidation is not supported
+                    emptyList()
+                } catch (e: InvocationTargetException) {
+                    if (e.cause != null) throw e.cause!! else throw e
+                }
+            } else emptyList()
+        }
 
         fun <T : Any> isValueClass(clazz: Class<T>): Boolean {
             return clazz.declaredAnnotations.any {

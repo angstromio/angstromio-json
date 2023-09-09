@@ -29,14 +29,12 @@ import com.fasterxml.jackson.databind.node.TreeTraversingParser
 import com.fasterxml.jackson.databind.util.ClassUtil
 import java.lang.reflect.Executable
 import kotlin.reflect.KClass
-import kotlin.reflect.full.memberProperties
-import kotlin.reflect.full.primaryConstructor
 
 internal class DataClassField(
     val name: String,
     val index: Int,
     val javaType: JavaType,
-    val annotations: List<Annotation>,
+    val annotations: Array<Annotation>,
     val beanPropertyDefinition: BeanPropertyDefinition,
     val defaultFn: (() -> Any?)?
 ) {
@@ -49,17 +47,19 @@ internal class DataClassField(
         }
     }
     private val isString = javaType.hasRawClass(String::class.java)
-    private val firstTypeParam: JavaType by lazy { javaType.containedType(0) }
+//    private val firstTypeParam: JavaType by lazy { javaType.containedType(0) }
     private val clazzAnnotations: List<Annotation> by lazy {
         javaType.rawClass.kotlin.annotations
     }
     private val isIgnored: Boolean by lazy {
-       val jsonIgnoreAnnotation = Annotations.findAnnotation<JsonIgnore>(annotations)
-       val jsonIgnoreTypeAnnotation = Annotations.findAnnotation<JsonIgnoreType>(clazzAnnotations)
-       jsonIgnoreAnnotation != null ||jsonIgnoreTypeAnnotation != null
+        val jsonIgnoreAnnotation = Annotations.findAnnotation<JsonIgnore>(annotations)
+        val jsonIgnoreTypeAnnotation = Annotations.findAnnotation<JsonIgnoreType>(clazzAnnotations)
+        jsonIgnoreAnnotation != null || jsonIgnoreTypeAnnotation != null
     }
     private val jsonDeserializer: JsonDeserialize? =
-        Annotations.findAnnotation<JsonDeserialize>(annotations) ?: Annotations.findAnnotation<JsonDeserialize>(clazzAnnotations)
+        Annotations.findAnnotation<JsonDeserialize>(annotations) ?: Annotations.findAnnotation<JsonDeserialize>(
+            clazzAnnotations
+        )
 
     fun parse(
         context: DeserializationContext,
@@ -69,14 +69,15 @@ internal class DataClassField(
         val injectableValuesOpt: InjectableValues? = DeserializationContextAccessor(context).injectableValues()
         val forProperty: DataClassBeanProperty = beanProperty(context)
 
-       return when {
-           injectableValuesOpt != null -> {
-               context.findInjectableValue(
-                   /* valueId = */ forProperty.valueObj?.id,
-                   /* forProperty = */ forProperty.property,
-                   /* beanInstance = */ null
-               ) ?: findValue(context, codec, objectJsonNode, forProperty.property)
-           }
+        return when {
+            injectableValuesOpt != null -> {
+                context.findInjectableValue(
+                    /* valueId = */ forProperty.valueObj?.id,
+                    /* forProperty = */ forProperty.property,
+                    /* beanInstance = */ null
+                ) ?: findValue(context, codec, objectJsonNode, forProperty.property)
+            }
+
             else ->
                 findValue(context, codec, objectJsonNode, forProperty.property)
         }
@@ -100,6 +101,7 @@ internal class DataClassField(
                     // active view is in the list of views from the annotation
                     parse(context, codec, objectJsonNode, beanProperty)
                 } else defaultValueOrException(isIgnored)
+
             else ->
                 // no active view proceed as normal
                 parse(context, codec, objectJsonNode, beanProperty)
@@ -117,7 +119,8 @@ internal class DataClassField(
             annotatedParameter = beanPropertyDefinition.constructorParameter,
             annotations = annotations.toList(),
             name = name,
-            index = index)
+            index = index
+        )
 
     private fun parse(
         context: DeserializationContext,
@@ -132,6 +135,7 @@ internal class DataClassField(
             when {
                 resolved != null ->
                     resolved
+
                 else ->
                     // wasn't handled by another resolved deserializer
                     parseFieldValue(context, codec, fieldJsonNode, forProperty, null)
@@ -161,8 +165,10 @@ internal class DataClassField(
                             usingValue::class.java.toString(),
                             JsonMappingException.from(
                                 context,
-                                "Unable to locate/create deserializer specified by: ${annotationClazz.name}(using = $usingValue)")
+                                "Unable to locate/create deserializer specified by: ${annotationClazz.name}(using = $usingValue)"
+                            )
                         )
+
                     else -> {
                         val treeTraversingParser = TreeTraversingParser(fieldJsonNode, fieldCodec)
                         treeTraversingParser.use {
@@ -247,6 +253,7 @@ internal class DataClassField(
                 // for polymorphic types we cannot contextualize
                 // thus we go back to the field codec to read
                 fieldCodec.readValue(jsonParser, resolvedType)
+
             else ->
                 if (resolvedType.isContainerType) {
                     // nor container types -- trying to contextualize on a container type leads to poor performance
@@ -270,6 +277,7 @@ internal class DataClassField(
             when (value) {
                 is Iterable<*> ->
                     assertNotNull(context, value)
+
                 is Array<*> ->
                     assertNotNull(context, value.toList())
             }
@@ -281,7 +289,7 @@ internal class DataClassField(
         context: DeserializationContext,
         iterable: Iterable<*>
     ) {
-        if (iterable.any {it == null }) {
+        if (iterable.any { it == null }) {
             throw JsonMappingException.from(
                 context,
                 "Literal null values are not allowed as json array elements."
@@ -303,7 +311,7 @@ internal class DataClassField(
         val message =
             if (ignorable) {
                 "ignored $fieldInfoAttributeType has no default value specified"
-            } else  {
+            } else {
                 "$fieldInfoAttributeType is required"
             }
 
@@ -350,7 +358,7 @@ internal class DataClassField(
             kClazz: KClass<*>,
             constructor: Executable,
             propertyDefinitions: Array<DataClassDeserializer.Companion.PropertyDefinition>,
-            fieldAnnotations: Map<String, List<Annotation>>,
+            fieldAnnotations: Map<String, Array<Annotation>>,
             namingStrategy: PropertyNamingStrategy?
         ): Array<DataClassField> {
             /* DataClassFields MUST be returned in constructor/method parameter invocation order */
@@ -361,15 +369,16 @@ internal class DataClassField(
             return Array(parameters.size) { index ->
                 val propertyDefinition = propertyDefinitions[index]
                 // we look up annotations by the field name as that is how they are keyed
-                val annotations: List <Annotation> =
+                val annotations: Array<Annotation> =
                     when (val propertyName = fieldAnnotations[propertyDefinition.beanPropertyDefinition.name]) {
-                        null -> emptyList()
+                        null -> emptyArray()
                         else -> propertyName
                     }
                 val name = jsonNameForField(
                     namingStrategy,
                     annotations,
-                    propertyDefinition.beanPropertyDefinition.name)
+                    propertyDefinition.beanPropertyDefinition.name
+                )
 
                 DataClassField(
                     name = name,
@@ -384,13 +393,14 @@ internal class DataClassField(
 
         private fun jsonNameForField(
             namingStrategy: PropertyNamingStrategy?,
-            annotations: List<Annotation>,
+            annotations: Array<Annotation>,
             name: String
         ): String {
             val jsonProperty = Annotations.findAnnotation<JsonProperty>(annotations)
             return when {
                 jsonProperty != null && jsonProperty.value.isNotEmpty() ->
                     jsonProperty.value
+
                 else -> {
                     val decodedName = decode(name)
                     // apply json naming strategy (e.g. snake_case)
@@ -415,6 +425,7 @@ internal class DataClassField(
         ): JavaType = when {
             subClazz != null && isNotAssignableFrom(subClazz, baseType.rawClass) ->
                 context.resolveSubType(baseType, subClazz.name)
+
             else -> baseType
         }
 

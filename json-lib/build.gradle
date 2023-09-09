@@ -78,6 +78,8 @@ dependencies {
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.15+'
     implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
     implementation 'io.angstrom:angstromio-util:0.0.1-SNAPSHOT'
+    implementation 'io.angstrom:angstromio-validator:0.0.1-SNAPSHOT'
+    implementation 'jakarta.validation:jakarta.validation-api:3.0.2'
 
     // Use Kotest Kotlin testing integration.
     testImplementation 'io.kotest:kotest-runner-junit5:5.6.2'
