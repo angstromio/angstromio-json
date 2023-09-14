@@ -1,5 +1,3 @@
-@file:kotlin.jvm.JvmMultifileClass
-
 package com.fasterxml.jackson.databind
 
 import com.fasterxml.jackson.core.JsonFactory

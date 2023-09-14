@@ -23,12 +23,8 @@ import java.io.PrintStream
  * The `assert` functions throw [AssertionError] when a difference is detected in the JSON strings.
  * These functions are generally more useful for the testing of JSON processing code.
  */
-class JsonDiff(
-    private val mapper: ObjectMapper =
-        jacksonObjectMapper()
-            .registerModule(beanDeserializerModule { disableValidation() })
-) {
-
+object JsonDiff {
+    private val mapper: ObjectMapper = ObjectMapper().defaultMapper()
     private val sortingObjectMapper: ObjectMapper by lazy {
         val newMapper = mapper.makeCopy()
         newMapper.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)

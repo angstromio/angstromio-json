@@ -2,7 +2,6 @@ package angstromio.json
 
 import angstromio.util.io.ClasspathResource
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 
 /**
  * Uses an instance of a [ObjectMapper] configured to not perform any type of validation.
@@ -11,8 +10,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 object JSON : AbstractSimpleMapper() {
 
     override val underlying: ObjectMapper =
-        jacksonObjectMapper()
-            .registerModule(beanDeserializerModule { disableValidation() })
+        ObjectMapper().defaultMapper(enableValidation = false)
 
     object Resource {
 
@@ -25,10 +23,8 @@ object JSON : AbstractSimpleMapper() {
             when (val inputStream = ClasspathResource.load(name)) {
                 null -> null
                 else ->
-                    try {
-                        JSON.readValue<T>(inputStream)
-                    } finally {
-                        inputStream.close()
+                    inputStream.use { s ->
+                        JSON.readValue<T>(s)
                     }
             }
     }

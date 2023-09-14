@@ -18,8 +18,8 @@ class BeanDeserializerModule(private val validator: Validator?) :
     }
 
     class Builder(
-        val validator: Validator? = DEFAULT_VALIDATOR,
-        val validation: Boolean = DEFAULT_ENABLE_VALIDATION
+        internal val validator: Validator? = DEFAULT_VALIDATOR,
+        private val validation: Boolean = DEFAULT_ENABLE_VALIDATION
     ) {
         companion object {
             /** The default 'Validator' for a [ObjectMapper] */
@@ -35,10 +35,10 @@ class BeanDeserializerModule(private val validator: Validator?) :
                 validation = this.validation
             )
 
-        fun disableValidation(): Builder =
+        fun enableValidation(enable: Boolean): Builder =
             Builder(
-                validator = null,
-                validation = false
+                validator = if (enable) this.validator else null,
+                validation = enable
             )
 
         fun build(): BeanDeserializerModule = BeanDeserializerModule(this)

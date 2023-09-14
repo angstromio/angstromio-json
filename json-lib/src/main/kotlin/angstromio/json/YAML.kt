@@ -11,10 +11,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 object YAML : AbstractSimpleMapper() {
 
     override val underlying: ObjectMapper =
-        yamlObjectMapper(
-            jacksonObjectMapper()
-            .registerModule(beanDeserializerModule { disableValidation() })
-        )
+        yamlObjectMapper(ObjectMapper().defaultMapper(enableValidation = false))
 
     object Resource {
 

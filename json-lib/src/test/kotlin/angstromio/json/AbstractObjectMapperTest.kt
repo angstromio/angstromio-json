@@ -15,8 +15,6 @@ import kotlin.reflect.full.isSubclassOf
 abstract class AbstractObjectMapperTest : FunSpec() {
     abstract val mapper: ObjectMapper
 
-    val diff: JsonDiff by lazy { JsonDiff(mapper) }
-
     internal inline fun <reified T : Any> readValue(string: String): T =
         mapper.readValue<T>(string)
 
@@ -34,7 +32,7 @@ abstract class AbstractObjectMapperTest : FunSpec() {
 
     internal inline fun <reified T : Any> assertJson(obj: T, expected: String) {
         val json = generate(obj)
-        diff.assertDiff(expected, json)
+        JsonDiff.assertDiff(expected, json)
         readValue<T>(json) should be(obj)
     }
 
@@ -51,11 +49,10 @@ abstract class AbstractObjectMapperTest : FunSpec() {
         e: DataClassMappingException,
         withErrors: List<String>
     ) {
-//        trace(e.errors.mkString("\n"))
         clearStackTrace(e.errors)
 
         val actualMessages = e.errors.map { it.message }
-        diff.assertDiff(withErrors, actualMessages)
+        JsonDiff.assertDiff(withErrors, actualMessages)
     }
 
     internal inline fun <reified T : Any> assertJsonParse(json: String, withErrors: List<String>) {

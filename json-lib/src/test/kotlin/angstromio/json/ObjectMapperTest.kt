@@ -77,24 +77,8 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
     private val aliceJson: String = """{"id":1,"name":"Alice","age":32,"age_with_default":24,"nickname":"751A69C24D97009"}"""
 
     override val mapper: ObjectMapper by lazy {
-        val m: ObjectMapper = jsonMapper {
-            addModule(kotlinModule())
-            addModule(beanDeserializerModule())
-            addModule(JavaTimeModule())
-            addModule(MixInAnnotationsModule())
-            disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-            enable(SerializationFeature.WRITE_ENUMS_USING_TO_STRING)
-            disable(SerializationFeature.WRITE_DURATIONS_AS_TIMESTAMPS)
-            enable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
-            disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-            enable(DeserializationFeature.READ_ENUMS_USING_TO_STRING)
-            enable(DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY)
-            enable(MapperFeature.BLOCK_UNSAFE_POLYMORPHIC_BASE_TYPES)
-            enable(MapperFeature.ALLOW_COERCION_OF_SCALARS)
-        }
-
-        m.setDefaultPropertyInclusion(JsonInclude.Value.construct(JsonInclude.Include.NON_ABSENT, JsonInclude.Include.NON_ABSENT))
-        m.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
+        val m: ObjectMapper = ObjectMapper().defaultMapper()
+        m.registerModule(MixInAnnotationsModule())
         m.registerArrowModule()
     }
 
@@ -780,7 +764,7 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
 
         test("enums#complex") {
-            diff.assertDiff(
+            JsonDiff.assertDiff(
                 expected = TestClasses.ClassWithComplexEnums(
                 "Bob",
                 CarMake.VOLKSWAGEN,
@@ -805,7 +789,7 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         test("enums#complex case insensitive") {
             val caseInsensitiveEnumMapper = mapper.makeCopy().configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS, true)
 
-            diff.assertDiff(expected = TestClasses.ClassWithComplexEnums(
+            JsonDiff.assertDiff(expected = TestClasses.ClassWithComplexEnums(
                 "Bob",
                 CarMake.VOLKSWAGEN,
                 CarMake.FORD,
@@ -1211,7 +1195,7 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
             c.four should be(arrayOf(4L, 5L))
             c.five should be(arrayOf('x', 'y'))
 
-            diff.assertDiff(
+            JsonDiff.assertDiff(
                 """{"bools":[true,false],"bytes":[1,2],"doubles":[1.0,5.0],"five":["x","y"],"floats":[1.1,22.0],"four":[4,5],"one":"1","three":[1,2,3],"two":["a","b","c"]}""",
                 generate(c)
             )

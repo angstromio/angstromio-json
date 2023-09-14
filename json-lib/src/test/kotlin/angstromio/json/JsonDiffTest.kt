@@ -24,15 +24,13 @@ class JsonDiffTest : FunSpec() {
     private val baos = autoClose(ByteArrayOutputStream())
     private val ps = autoClose(PrintStream(baos, true, "utf-8"))
     
-    private val diff = JsonDiff(mapper)
-
     init {
 
         beforeTest {
             ps.flush()
         }
 
-        test("diff#diff success") {
+        test("JsonDiff#JsonDiff success") {
             val a = """
           {
             "a": 1,
@@ -47,11 +45,11 @@ class JsonDiffTest : FunSpec() {
           }
           """
 
-            diff.diff(a, b) should beNull()
+            JsonDiff.diff(a, b) should beNull()
         }
 
 
-        test("diff#diff with normalizer success") {
+        test("JsonDiff#JsonDiff with normalizer success") {
             val expected =
                 """
               {
@@ -71,7 +69,7 @@ class JsonDiffTest : FunSpec() {
               }
               """
 
-            val result = diff.diff(
+            val result = JsonDiff.diff(
                 expected,
                 actual,
                 normalizeFn = { jsonNode: JsonNode ->
@@ -81,7 +79,7 @@ class JsonDiffTest : FunSpec() {
             result should beNull()
         }
 
-        test("diff#diff failure") {
+        test("JsonDiff#JsonDiff failure") {
             val expected =
                 """
               {
@@ -98,11 +96,11 @@ class JsonDiffTest : FunSpec() {
               }
               """
 
-            val result = diff.diff(expected, actual)
+            val result = JsonDiff.diff(expected, actual)
             result shouldNot beNull()
         }
 
-        test("diff#diff with normalizer failure") {
+        test("JsonDiff#JsonDiff with normalizer failure") {
             val expected =
                 """
               {
@@ -122,7 +120,7 @@ class JsonDiffTest : FunSpec() {
               }
               """
 
-            val result = diff.diff(
+            val result = JsonDiff.diff(
                 expected,
                 actual,
                 normalizeFn = { jsonNode: JsonNode ->
@@ -132,7 +130,7 @@ class JsonDiffTest : FunSpec() {
             result shouldNot beNull()
         }
 
-        test("diff#assertDiff pass") {
+        test("JsonDiff#assertDiff pass") {
             val expected =
                 """
               {
@@ -149,10 +147,10 @@ class JsonDiffTest : FunSpec() {
               }
             """
 
-            diff.assertDiff(expected, actual, p = ps)
+            JsonDiff.assertDiff(expected, actual, p = ps)
         }
 
-        test("diff#assertDiff with normalizer pass") {
+        test("JsonDiff#assertDiff with normalizer pass") {
             val expected =
                 """
               {
@@ -172,7 +170,7 @@ class JsonDiffTest : FunSpec() {
               }
             """
 
-            diff.assertDiff(
+            JsonDiff.assertDiff(
                 expected,
                 actual,
                 normalizeFn = { jsonNode: JsonNode ->
@@ -182,7 +180,7 @@ class JsonDiffTest : FunSpec() {
             )
         }
 
-        test("diff#assertDiff with normalizer fail") {
+        test("JsonDiff#assertDiff with normalizer fail") {
             val expected =
                 """
               {
@@ -203,7 +201,7 @@ class JsonDiffTest : FunSpec() {
             """
 
             shouldThrow<AssertionError> {
-                diff.assertDiff(
+                JsonDiff.assertDiff(
                     expected,
                     actual,
                     normalizeFn = { jsonNode: JsonNode ->
@@ -214,16 +212,16 @@ class JsonDiffTest : FunSpec() {
             }
         }
 
-        test("diff#diff arbitrary pass") {
+        test("JsonDiff#JsonDiff arbitrary pass") {
             val expected: Arb<ObjectNode> = Arb.int(1, 10).flatMap { depth -> JsonGenerator.objectNode(depth) }
 
             forAll(expected) { node ->
                 val json = mapper.writeValueAsString(node)
-                diff.diff(expected = json, actual = json) == null
+                JsonDiff.diff(expected = json, actual = json) == null
             }
         }
 
-        test("diff#diff arbitrary fail") {
+        test("JsonDiff#JsonDiff arbitrary fail") {
             val values: Arb<Pair<ObjectNode?, ObjectNode?>> = Arb.int(1, 5).flatMap { depth ->
                 JsonGenerator.objectNode(depth).flatMap { expected ->
                     JsonGenerator.objectNode(depth).map { actual ->
@@ -235,61 +233,61 @@ class JsonDiffTest : FunSpec() {
 
             forAll(values) { value: Pair<ObjectNode?, ObjectNode?> ->
                 val (expected, actual) = value
-                if (expected != null && actual != null) diff.diff(expected = expected, actual = actual) != null
+                if (expected != null && actual != null) JsonDiff.diff(expected = expected, actual = actual) != null
                 else true // skip
             }
         }
 
         // (the arbitrary tests above do not generate tests for array depth 1)
 
-        test("diff#diff array depth 1 fail") {
+        test("JsonDiff#JsonDiff array depth 1 fail") {
             val expected = """["a","b"]"""
             val actual = """["b","a"]"""
-            diff.diff(expected, actual) shouldNot beNull()
+            JsonDiff.diff(expected, actual) shouldNot beNull()
         }
 
-        test("diff#diff array depth 1 pass") {
+        test("JsonDiff#JsonDiff array depth 1 pass") {
             val expected = """["a","b"]"""
             val actual = """["a","b"]"""
-            diff.diff(expected, actual) should beNull()
+            JsonDiff.diff(expected, actual) should beNull()
         }
 
         // (the arbitrary tests above do not generate tests with null values or escapes)
 
-        test("diff#diff with null values - fail") {
+        test("JsonDiff#JsonDiff with null values - fail") {
             val expected = """{"a":null}"""
             val actual = "{}"
-            diff.diff(expected, actual) shouldNot beNull()
+            JsonDiff.diff(expected, actual) shouldNot beNull()
         }
 
-        test("diff#diff with null values - pass") {
+        test("JsonDiff#JsonDiff with null values - pass") {
             val expected = """{"a":null}"""
             val actual = """{"a": null}"""
-            diff.diff(expected, actual) should beNull()
+            JsonDiff.diff(expected, actual) should beNull()
         }
 
-        test("diff#diff with unicode escape - pass") {
+        test("JsonDiff#JsonDiff with unicode escape - pass") {
             val expected = """{"t1": "24\u00B0F"}"""
             val actual = """{"t1": "24°F"}"""
-            diff.diff(expected, actual) should beNull()
+            JsonDiff.diff(expected, actual) should beNull()
         }
 
-        test("diff#toSortedString is sorted") {
+        test("JsonDiff#toSortedString is sorted") {
             val before = mapper.readValue<JsonNode>("""{"a":1,"c":3,"b":2}""")
             val expected = """{"a":1,"b":2,"c":3}"""
-            diff.toSortedString(before) shouldBeEqual expected
+            JsonDiff.toSortedString(before) shouldBeEqual expected
         }
 
-        test("diff#toSortedString doesn't sort arrays") {
+        test("JsonDiff#toSortedString doesn't sort arrays") {
             val before = mapper.readValue<JsonNode>("""["b","a"]""")
             val expected = """["b","a"]"""
-            diff.toSortedString(before) shouldBeEqual expected
+            JsonDiff.toSortedString(before) shouldBeEqual expected
         }
 
-        test("diff#toSortedString includes null values") {
+        test("JsonDiff#toSortedString includes null values") {
             val before = mapper.readValue<JsonNode>("""{"a":null}""")
             val expected = """{"a":null}"""
-            diff.toSortedString(before) shouldBeEqual expected
+            JsonDiff.toSortedString(before) shouldBeEqual expected
         }
     }
 }
