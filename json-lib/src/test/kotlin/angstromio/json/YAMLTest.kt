@@ -11,8 +11,8 @@ class YAMLTest : TestWithFileResources, FunSpec() {
     override val _folderName = ThreadLocal<File>()
 
     init {
-        test("YAML#parse 1") {
-            when (val map = YAML.parse<Map<String, Int>>("""
+        test("YAML#readValue 1") {
+            when (val map = YAML.readValue<Map<String, Int>>("""
         |---
         |a: 1
         |b: 2
@@ -22,9 +22,9 @@ class YAMLTest : TestWithFileResources, FunSpec() {
             }
         }
 
-        test("YAML#parse 2") {
+        test("YAML#readValue 2") {
             // without quotes
-            when (val list = YAML.parse<List<String>>("""
+            when (val list = YAML.readValue<List<String>>("""
         |---
         |- a
         |- b
@@ -33,7 +33,7 @@ class YAMLTest : TestWithFileResources, FunSpec() {
                 else -> list shouldBeEqual listOf("a", "b", "c")
             }
             // with quotes
-            when (val list = YAML.parse<List<String>>("""
+            when (val list = YAML.readValue<List<String>>("""
                               |---
                               |- "a"
                               |- "b"
@@ -43,16 +43,16 @@ class YAMLTest : TestWithFileResources, FunSpec() {
             }
         }
 
-        test("YAML#parse 3") {
+        test("YAML#readValue 3") {
             // without quotes
-            when (val foo = YAML.parse<FooClass>("""
+            when (val foo = YAML.readValue<TestClasses.FooClass>("""
                            |---
                            |id: abcde1234""".trimMargin())) {
                 null -> fail("")
                 else -> foo.id shouldBeEqual "abcde1234"
             }
             // with quotes
-            when (val foo = YAML.parse<FooClass>("""
+            when (val foo = YAML.readValue<TestClasses.FooClass>("""
                            |---
                            |id: "abcde1234"""".trimMargin())) {
                 null -> fail("")
@@ -61,10 +61,10 @@ class YAMLTest : TestWithFileResources, FunSpec() {
         }
         
 
-        test("YAML#parse 6") {
+        test("YAML#readValue 6") {
             val inputStream = ByteArrayInputStream("""{"id": "abcd1234"}""".toByteArray(Charsets.UTF_8))
             try {
-                when (val foo = YAML.parse<FooClass>(inputStream)) {
+                when (val foo = YAML.readValue<TestClasses.FooClass>(inputStream)) {
                     null -> fail("")
                     else -> foo.id shouldBeEqual "abcd1234"
                 }
@@ -73,7 +73,7 @@ class YAMLTest : TestWithFileResources, FunSpec() {
             }
         }
 
-        test("YAML#parse 7") {
+        test("YAML#readValue 7") {
             withTempFolder {
                 // without quotes
                 val file1: File =
@@ -83,7 +83,7 @@ class YAMLTest : TestWithFileResources, FunSpec() {
                         ".yaml",
                         """|---
                             |id: 999999999""".trimMargin())
-                when (val foo = YAML.parse<FooClass>(file1)) {
+                when (val foo = YAML.readValue<TestClasses.FooClass>(file1)) {
                     null -> fail("")
                     else -> foo.id shouldBeEqual "999999999"
                 }
@@ -95,7 +95,7 @@ class YAMLTest : TestWithFileResources, FunSpec() {
                         ".yaml",
                         """|---
              |id: "999999999"""".trimMargin())
-                when (val foo = YAML.parse<FooClass>(file2)) {
+                when (val foo = YAML.readValue<TestClasses.FooClass>(file2)) {
                     null -> fail("")
                     else -> foo.id shouldBeEqual "999999999"
                 }
@@ -118,13 +118,13 @@ class YAMLTest : TestWithFileResources, FunSpec() {
         }
 
         test("YAML#write 3") {
-            YAML.write(FooClass("abcd1234"))shouldBeEqual """|---
+            YAML.write(TestClasses.FooClass("abcd1234"))shouldBeEqual """|---
         |id: "abcd1234"
         |""".trimMargin()
         }
 
-        test("YAML.Resource#parse resource") {
-            when (val foo = YAML.Resource.parse<FooClass>("/test.yml")) {
+        test("YAML.Resource#readValue resource") {
+            when (val foo = YAML.Resource.readValue<TestClasses.FooClass>("/test.yml")) {
                 null -> fail("")
                 else -> foo.id shouldBeEqual "55555555"
             }

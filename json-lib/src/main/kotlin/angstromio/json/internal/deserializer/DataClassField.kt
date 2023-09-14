@@ -1,7 +1,10 @@
-package angstromio.json.deserializer
+package angstromio.json.internal.deserializer
 
-import angstromio.json.deserializer.DataClassBeanProperty.Companion.newBeanProperty
-import angstromio.json.exceptions.DataClassFieldMappingException
+import angstromio.json.internal.Classes
+import angstromio.json.internal.Types
+import angstromio.json.internal.deserializer.DataClassBeanProperty.Companion.newBeanProperty
+import angstromio.util.extensions.Annotations.merge
+import angstromio.util.extensions.KClasses.getConstructor
 import angstromio.util.extensions.Lists.head
 import angstromio.util.extensions.Lists.tail
 import angstromio.util.extensions.Strings.toCamelCase
@@ -24,20 +27,38 @@ import com.fasterxml.jackson.databind.JsonMappingException
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.PropertyNamingStrategy
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import com.fasterxml.jackson.databind.exc.InvalidDefinitionException
 import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition
+import com.fasterxml.jackson.databind.node.NullNode
 import com.fasterxml.jackson.databind.node.TreeTraversingParser
 import com.fasterxml.jackson.databind.util.ClassUtil
 import java.lang.reflect.Executable
 import kotlin.reflect.KClass
+import kotlin.reflect.KParameter
+import kotlin.reflect.full.isSubclassOf
 
 internal class DataClassField(
-    val name: String,
-    val index: Int,
+    val parameter: KParameter,
+    val name: String, // note: this may be different from the parameter name due to usage of a @JsonProperty, or @JsonAlias
     val javaType: JavaType,
+    val isMarkedNullable: Boolean,
     val annotations: Array<Annotation>,
-    val beanPropertyDefinition: BeanPropertyDefinition,
-    val defaultFn: (() -> Any?)?
+    val beanPropertyDefinition: BeanPropertyDefinition
 ) {
+    val isOptional = parameter.isOptional
+    val isIgnored: Boolean by lazy {
+        // lazy as it uses a field defined further down
+        val jsonIgnoreAnnotation = Annotations.findAnnotation<JsonIgnore>(annotations)
+        val jsonIgnoreTypeAnnotation = Annotations.findAnnotation<JsonIgnoreType>(clazzAnnotations)
+        jsonIgnoreAnnotation != null || jsonIgnoreTypeAnnotation != null
+    }
+    private val index = parameter.index
+    private val isString = javaType.hasRawClass(String::class.java)
+    private val clazzAnnotations: List<Annotation> = javaType.rawClass.kotlin.annotations
+    private val jsonDeserializer: JsonDeserialize? =
+        Annotations
+            .findAnnotation<JsonDeserialize>(annotations) ?: Annotations
+                .findAnnotation<JsonDeserialize>(clazzAnnotations)
 
     val missingValue: Any? by lazy {
         if (javaType.isPrimitive) {
@@ -46,26 +67,23 @@ internal class DataClassField(
             null
         }
     }
-    private val isString = javaType.hasRawClass(String::class.java)
-//    private val firstTypeParam: JavaType by lazy { javaType.containedType(0) }
-    private val clazzAnnotations: List<Annotation> by lazy {
-        javaType.rawClass.kotlin.annotations
+
+    tailrec fun getFieldInfo(
+        fieldName: String,
+        annotations: List<Annotation>?
+    ): Pair<String, String> {
+        return if (annotations.isNullOrEmpty()) {
+            Pair("field", fieldName)
+        } else {
+            extractFieldInfo(fieldName, annotations.head()) ?: getFieldInfo(fieldName, annotations.tail())
+        }
     }
-    private val isIgnored: Boolean by lazy {
-        val jsonIgnoreAnnotation = Annotations.findAnnotation<JsonIgnore>(annotations)
-        val jsonIgnoreTypeAnnotation = Annotations.findAnnotation<JsonIgnoreType>(clazzAnnotations)
-        jsonIgnoreAnnotation != null || jsonIgnoreTypeAnnotation != null
-    }
-    private val jsonDeserializer: JsonDeserialize? =
-        Annotations.findAnnotation<JsonDeserialize>(annotations) ?: Annotations.findAnnotation<JsonDeserialize>(
-            clazzAnnotations
-        )
 
     fun parse(
         context: DeserializationContext,
         codec: ObjectCodec,
         objectJsonNode: JsonNode
-    ): Any {
+    ): Any? {
         val injectableValuesOpt: InjectableValues? = DeserializationContextAccessor(context).injectableValues()
         val forProperty: DataClassBeanProperty = beanProperty(context)
 
@@ -88,7 +106,7 @@ internal class DataClassField(
         codec: ObjectCodec,
         objectJsonNode: JsonNode,
         beanProperty: BeanProperty
-    ): Any {
+    ): Any? {
         // current active view (if any)
         val activeJsonView: Class<*>? = context.activeView
         // current @JsonView annotation (if any)
@@ -100,11 +118,14 @@ internal class DataClassField(
                 if (fieldJsonViews.contains(activeJsonView)) {
                     // active view is in the list of views from the annotation
                     parse(context, codec, objectJsonNode, beanProperty)
-                } else defaultValueOrException(isIgnored)
+                } else {
+                    getNullable(explicitNull = !objectJsonNode::class.isSubclassOf(NullNode::class))
+                }
 
-            else ->
+            else -> {
                 // no active view proceed as normal
                 parse(context, codec, objectJsonNode, beanProperty)
+            }
         }
     }
 
@@ -127,20 +148,22 @@ internal class DataClassField(
         codec: ObjectCodec,
         objectJsonNode: JsonNode,
         forProperty: BeanProperty
-    ): Any {
+    ): Any? {
         val fieldJsonNode = objectJsonNode.get(name)
         return if (!isIgnored && fieldJsonNode != null) {
             // not ignored and a value was passed in the JSON
             val resolved = resolveWithDeserializerAnnotation(context, codec, fieldJsonNode, forProperty)
             when {
-                resolved != null ->
+                resolved != null -> {
                     resolved
+                }
 
-                else ->
+                else -> {
                     // wasn't handled by another resolved deserializer
                     parseFieldValue(context, codec, fieldJsonNode, forProperty, null)
+                }
             }
-        } else defaultValueOrException(isIgnored)
+        } else getNullable(explicitNull = !objectJsonNode::class.isSubclassOf(NullNode::class))
     }
 
     private fun resolveWithDeserializerAnnotation(
@@ -154,15 +177,16 @@ internal class DataClassField(
             val annotationClazz by lazy { jsonDeserializer::class.java }
             val usingValue by lazy { jsonDeserializer.using }
             val contentAsValue by lazy { jsonDeserializer.contentAs }
-            if (isNotAssignableFrom(usingValue::class.java, JsonDeserializer::class.java)) {
+            if (usingValue.java != JsonDeserializer.None::class.java &&
+                Classes.isAssignableFrom(usingValue.java, JsonDeserializer::class.java)) {
                 // specifies a deserializer to use. we don't want to run any processing of the field
                 // node value here as the field is specified to be deserialized by some other deserializer
                 when (val deserializer =
-                    context.deserializerInstance(beanPropertyDefinition.primaryMember, usingValue::class.java)) {
+                    context.deserializerInstance(beanPropertyDefinition.primaryMember, usingValue.java)) {
                     null ->
                         context.handleInstantiationProblem(
                             javaType.rawClass,
-                            usingValue::class.java.toString(),
+                            usingValue.java.toString(),
                             JsonMappingException.from(
                                 context,
                                 "Unable to locate/create deserializer specified by: ${annotationClazz.name}(using = $usingValue)"
@@ -178,19 +202,19 @@ internal class DataClassField(
                         }
                     }
                 }
-            } else if (isNotAssignableFrom(contentAsValue::class.java, Void::class.java)) {
+            } else if (Classes.isNotAssignableFrom(contentAsValue.java, Void::class.java)) {
                 // there is a @JsonDeserialize annotation, but it merely states to deserialize as a specific type
                 parseFieldValue(
                     context,
                     fieldCodec,
                     fieldJsonNode,
                     forProperty,
-                    contentAsValue::class.java
+                    contentAsValue.java
                 )
             } else {
                 context.handleInstantiationProblem(
                     javaType.rawClass,
-                    usingValue::class.java.toString(),
+                    usingValue.java.toString(),
                     JsonMappingException.from(
                         context,
                         "Unable to locate/create deserializer specified by: ${annotationClazz.name}(using = $usingValue)"
@@ -206,10 +230,10 @@ internal class DataClassField(
         fieldJsonNode: JsonNode,
         forProperty: BeanProperty,
         subTypeClazz: Class<*>?
-    ): Any {
+    ): Any? {
         return if (fieldJsonNode.isNull) {
             // the passed JSON value is a 'null' value
-            defaultValueOrException(isIgnored)
+            getNullable()
         } else if (isString) {
             // if this is a String type, do not try to use a JsonParser and simply return the node as text
             if (fieldJsonNode.isValueNode) fieldJsonNode.asText()
@@ -219,22 +243,11 @@ internal class DataClassField(
             treeTraversingParser.use {
                 // advance the parser to the next token for deserialization
                 it.nextToken()
-                /*if (isOption) {
-                            Option(
-                                parseFieldValue(
-                                    context,
-                                    fieldCodec,
-                                    it,
-                                    beanProperty(context, Some(firstTypeParam)).property,
-                                    subTypeClazz)
-                            )
-                        } else {*/
                 assertNotNull(
                     context,
                     fieldJsonNode,
                     parseFieldValue(context, fieldCodec, it, forProperty, subTypeClazz)
                 )
-                //}
             }
         }
     }
@@ -245,7 +258,7 @@ internal class DataClassField(
         jsonParser: JsonParser,
         forProperty: BeanProperty,
         subTypeClazz: Class<*>?
-    ): Any {
+    ): Any? {
         val resolvedType = resolveSubType(context, forProperty.type, subTypeClazz)
         val ann = Annotations.findAnnotation<JsonTypeInfo>(clazzAnnotations)
         return when {
@@ -266,72 +279,11 @@ internal class DataClassField(
         }
     }
 
-    private fun assertNotNull(
-        context: DeserializationContext,
-        field: JsonNode,
-        value: Any?
-    ): Any {
-        return if (value == null) {
-            throw JsonMappingException.from(context, "error parsing '" + field.asText() + "'")
+    private fun getNullable(explicitNull: Boolean = true): Any? {
+        return if (isMarkedNullable && explicitNull) {
+            Types.Null
         } else {
-            when (value) {
-                is Iterable<*> ->
-                    assertNotNull(context, value)
-
-                is Array<*> ->
-                    assertNotNull(context, value.toList())
-            }
-            value
-        }
-    }
-
-    private fun assertNotNull(
-        context: DeserializationContext,
-        iterable: Iterable<*>
-    ) {
-        if (iterable.any { it == null }) {
-            throw JsonMappingException.from(
-                context,
-                "Literal null values are not allowed as json array elements."
-            )
-        }
-    }
-
-    /** Return the default value of the field */
-    private fun defaultValue(): Any? = defaultFn?.invoke()
-
-    /** Return the <<defaultValue>> or else throw a required field exception */
-    private fun defaultValueOrException(ignoredField: Boolean): Any =
-        defaultValue() ?: throwRequiredFieldException(ignoredField)
-
-    /** Throw a required field exception */
-    private fun throwRequiredFieldException(ignorable: Boolean): Nothing {
-        val (fieldInfoAttributeType, fieldInfoAttributeName) = getFieldInfo(name, annotations.toList())
-
-        val message =
-            if (ignorable) {
-                "ignored $fieldInfoAttributeType has no default value specified"
-            } else {
-                "$fieldInfoAttributeType is required"
-            }
-
-        throw DataClassFieldMappingException(
-            DataClassFieldMappingException.PropertyPath.leaf(fieldInfoAttributeName),
-            DataClassFieldMappingException.Reason(
-                message,
-                DataClassFieldMappingException.Detail.RequiredFieldMissing
-            )
-        )
-    }
-
-    private tailrec fun getFieldInfo(
-        fieldName: String,
-        annotations: List<Annotation>?
-    ): Pair<String, String> {
-        return if (annotations.isNullOrEmpty()) {
-            Pair("field", fieldName)
-        } else {
-            extractFieldInfo(fieldName, annotations.head()) ?: getFieldInfo(fieldName, annotations.tail())
+            null
         }
     }
 
@@ -365,28 +317,39 @@ internal class DataClassField(
             // we could choose to use the size of the property definitions here, but since they are
             // computed there is the possibility it is incorrect, and thus we want to ensure we have
             // as many definitions as there are parameters defined for the given constructor.
-            val parameters = constructor.parameters
-            return Array(parameters.size) { index ->
+            val kFunctionParameters = kClazz
+                .getConstructor(constructor.parameterTypes.map { it.kotlin })!!
+                .parameters.filter { it.kind == KParameter.Kind.VALUE }
+            return Array(kFunctionParameters.size) { index ->
+                val kParameter = kFunctionParameters[index]
                 val propertyDefinition = propertyDefinitions[index]
                 // we look up annotations by the field name as that is how they are keyed
+                if (propertyDefinition.beanPropertyDefinition.name.isEmpty())
+                    throw InvalidDefinitionException.from(
+                        TreeTraversingParser(NullNode.instance),
+                        "Unable to properly determine JSON property name for clazz ${kClazz.qualifiedName} with PropertyNamingStrategy $namingStrategy with parameter name ${kParameter.name}",
+                        propertyDefinition.beanPropertyDefinition.primaryType
+                    )
+
                 val annotations: Array<Annotation> =
-                    when (val propertyName = fieldAnnotations[propertyDefinition.beanPropertyDefinition.name]) {
-                        null -> emptyArray()
-                        else -> propertyName
+                    when (val foundAnnotations = fieldAnnotations[propertyDefinition.beanPropertyDefinition.name]) {
+                        null ->
+                            kParameter.annotations.toTypedArray()
+                        else ->
+                            kParameter.annotations.toTypedArray().merge(foundAnnotations)
                     }
-                val name = jsonNameForField(
-                    namingStrategy,
-                    annotations,
-                    propertyDefinition.beanPropertyDefinition.name
-                )
 
                 DataClassField(
-                    name = name,
-                    index = index,
+                    parameter = kParameter,
+                    name = jsonNameForField(
+                        namingStrategy,
+                        annotations,
+                        propertyDefinition.beanPropertyDefinition.name
+                    ),
                     javaType = propertyDefinition.type,
+                    isMarkedNullable = kParameter.type.isMarkedNullable,
                     annotations = annotations,
-                    beanPropertyDefinition = propertyDefinition.beanPropertyDefinition,
-                    defaultFn = Types.getDefaultFunctionForParameter(kClazz, index)
+                    beanPropertyDefinition = propertyDefinition.beanPropertyDefinition
                 )
             }
         }
@@ -413,6 +376,36 @@ internal class DataClassField(
             }
         }
 
+        private fun assertNotNull(
+            context: DeserializationContext,
+            field: JsonNode,
+            value: Any?
+        ): Any {
+            return if (value == null) {
+                throw JsonMappingException.from(context, "error parsing '" + field.asText() + "'")
+            } else {
+                when (value) {
+                    is Iterable<*> ->
+                        assertNotNull(context, value)
+
+                    is Array<*> ->
+                        assertNotNull(context, value.toList())
+                }
+                value
+            }
+        }
+
+        private fun assertNotNull(
+            context: DeserializationContext,
+            iterable: Iterable<*>
+        ) {
+            if (iterable.any { it == null }) {
+                throw JsonMappingException.from(
+                    context,
+                    "Literal null values are not allowed as json array elements."
+                )
+            }
+        }
 
         // decode unicode escaped field names
         private fun decode(s: String): String =
@@ -423,21 +416,10 @@ internal class DataClassField(
             baseType: JavaType,
             subClazz: Class<*>?
         ): JavaType = when {
-            subClazz != null && isNotAssignableFrom(subClazz, baseType.rawClass) ->
+            subClazz != null && Classes.isNotAssignableFrom(subClazz, baseType.rawClass) ->
                 context.resolveSubType(baseType, subClazz.name)
 
             else -> baseType
-        }
-
-        private fun isNotAssignableFrom(clazz: Class<*>?, other: Class<*>): Boolean =
-            clazz != null && !isAssignableFrom(other, clazz)
-
-        private fun isAssignableFrom(fromType: Class<*>, toType: Class<*>?): Boolean {
-            return if (toType == null) {
-                false
-            } else {
-                Types.wrapperType(toType).isAssignableFrom(Types.wrapperType(fromType))
-            }
         }
     }
 }

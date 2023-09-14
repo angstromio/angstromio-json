@@ -1,5 +1,6 @@
 package angstromio.json
 
+import com.fasterxml.jackson.module.kotlin.readValue
 import io.kotest.assertions.fail
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.equals.shouldBeEqual
@@ -11,43 +12,43 @@ class JSONTest : TestWithFileResources, FunSpec() {
     override val _folderName = ThreadLocal<File>()
 
     init {
-        test("JSON#parse 1") {
-            when (val map = JSON.parse<Map<String, Int>>("""{"a": 1, "b": 2}""")) {
+        test("JSON#readValue 1") {
+            when (val map = JSON.readValue<Map<String, Int>>("""{"a": 1, "b": 2}""")) {
                 null -> fail("")
                 else -> map shouldBeEqual mapOf(Pair("a", 1), Pair("b", 2))
             }
         }
 
-        test("JSON#parse 2") {
-            when (val result = JSON.parse<List<String>>("""["a", "b", "c"]""")) {
+        test("JSON#readValue 2") {
+            when (val result = JSON.readValue<List<String>>("""["a", "b", "c"]""")) {
                 null -> fail("")
                 else -> result shouldBeEqual listOf("a", "b", "c")
             }
         }
 
-        test("JSON#parse 3") {
-            when (val foo = JSON.parse<FooClass>("""{"id": "abcd1234"}""")) {
+        test("JSON#readValue 3") {
+            when (val foo = JSON.readValue<TestClasses.FooClass>("""{"id": "abcd1234"}""")) {
                 null -> fail("")
                 else -> foo.id shouldBeEqual ("abcd1234")
             }
         }
 
-        test("JSON#parse 4") {
+        test("JSON#readValue 4") {
             val inputStream = ByteArrayInputStream("""{"id": "abcd1234"}""".toByteArray(Charsets.UTF_8))
             inputStream.use { ins ->
-                when (val foo = JSON.parse<FooClass>(ins)) {
+                when (val foo = JSON.readValue<TestClasses.FooClass>(ins)) {
                     null -> fail("")
                     else -> foo.id shouldBeEqual "abcd1234"
                 }
             }
         }
 
-        test("JSON#parse ") {
+        test("JSON#readValue ") {
             withTempFolder {
                 val file: File =
                     writeStringToFile(folderName(), "test-file", ".json", """{"id": "999999999"}""")
 
-                when (val foo = JSON.parse<FooClass>(file)) {
+                when (val foo = JSON.readValue<TestClasses.FooClass>(file)) {
                     null -> fail("")
                     else -> foo.id shouldBeEqual "999999999"
                 }
@@ -63,7 +64,7 @@ class JSONTest : TestWithFileResources, FunSpec() {
         }
 
         test("JSON#write 3") {
-            JSON.write(FooClass("abcd1234")) shouldBeEqual """{"id":"abcd1234"}"""
+            JSON.write(TestClasses.FooClass("abcd1234")) shouldBeEqual """{"id":"abcd1234"}"""
         }
 
         test("JSON#prettyPrint 1") {
@@ -82,13 +83,13 @@ class JSONTest : TestWithFileResources, FunSpec() {
         }
 
         test("JSON#prettyPrint 3") {
-            JSON.prettyPrint(FooClass("abcd1234")) shouldBeEqual """{
+            JSON.prettyPrint(TestClasses.FooClass("abcd1234")) shouldBeEqual """{
   "id" : "abcd1234"
 }""".trimMargin()
         }
 
-        test("JSON.Resource#parse resource") {
-            when (val foo = JSON.Resource.parse<FooClass>("/test.json")) {
+        test("JSON.Resource#readValue resource") {
+            when (val foo = JSON.Resource.readValue<TestClasses.FooClass>("/test.json")) {
                 null -> fail("")
                 else -> foo.id shouldBeEqual "55555555"
             }

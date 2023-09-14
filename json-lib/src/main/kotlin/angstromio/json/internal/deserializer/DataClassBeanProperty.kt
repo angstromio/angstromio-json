@@ -1,4 +1,4 @@
-package angstromio.json.deserializer
+package angstromio.json.internal.deserializer
 
 import com.fasterxml.jackson.annotation.JacksonAnnotation
 import com.fasterxml.jackson.annotation.JacksonInject
@@ -97,7 +97,7 @@ internal data class DataClassBeanProperty(
                 /* type        = */ javaType,
                 /* typeContext = */ typeResolutionContext,
                 /* annotations = */ annotations,
-                /* index = */ index
+                /* index       = */ index
             )
     }
 }

@@ -76,8 +76,10 @@ dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-core:2.15+'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.15+'
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.15+'
-    implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15+'
+    implementation 'io.arrow-kt:arrow-core:1.2.0'
     implementation 'io.angstrom:angstromio-util:0.0.1-SNAPSHOT'
+    implementation 'io.angstrom:angstromio-constraints:0.0.1-SNAPSHOT'
     implementation 'io.angstrom:angstromio-validator:0.0.1-SNAPSHOT'
     implementation 'jakarta.validation:jakarta.validation-api:3.0.2'
 
@@ -85,6 +87,8 @@ dependencies {
     testImplementation 'io.kotest:kotest-runner-junit5:5.6.2'
     testImplementation 'io.kotest:kotest-assertions-core:5.6.2'
     testImplementation 'io.kotest:kotest-property:5.6.2'
+
+    testImplementation 'io.arrow-kt:arrow-integrations-jackson-module:0.14.2-alpha.2'
 }
 
 publishing {

@@ -5,8 +5,9 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
-import com.fasterxml.jackson.databind.copyFn
 import com.fasterxml.jackson.databind.node.TextNode
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import java.io.PrintStream
 
 /**
@@ -22,14 +23,14 @@ import java.io.PrintStream
  * The `assert` functions throw [AssertionError] when a difference is detected in the JSON strings.
  * These functions are generally more useful for the testing of JSON processing code.
  */
-object JsonDiff {
-
-    private val mapper: KotlinObjectMapper by lazy {
-        KotlinObjectMapper.builder().objectMapper()
-    }
+class JsonDiff(
+    private val mapper: ObjectMapper =
+        jacksonObjectMapper()
+            .registerModule(beanDeserializerModule { disableValidation() })
+) {
 
     private val sortingObjectMapper: ObjectMapper by lazy {
-        val newMapper = mapper.underlying.copyFn()
+        val newMapper = mapper.makeCopy()
         newMapper.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
         newMapper.setDefaultPropertyInclusion(JsonInclude.Include.ALWAYS)
         newMapper
@@ -52,20 +53,19 @@ object JsonDiff {
     }
 
     /** A [JsonDiff] result */
-    data class Result(
+    data class Result internal constructor(
         val expected: JsonNode,
         val expectedPrettyString: String,
+        val expectedJsonSorted: String,
         val actual: JsonNode,
-        val actualPrettyString: String) {
-
-        private val expectedJsonSorted = toSortedString(expected)
-        private val actualJsonSorted = toSortedString(actual)
-
+        val actualPrettyString: String,
+        val actualJsonSorted: String
+    ) {
         override fun toString(): String {
             val expectedHeader = "Expected: "
             val diffStartIdx = actualJsonSorted.zip(expectedJsonSorted).indexOfFirst { (x, y) -> x != y }
 
-            val message =  StringBuilder()
+            val message = StringBuilder()
             message.append(" ".repeat(expectedHeader.length + diffStartIdx) + "*\n")
             message.append(expectedHeader + expectedJsonSorted + "\n")
             message.append("Actual:   $actualJsonSorted")
@@ -83,7 +83,7 @@ object JsonDiff {
      * @return if a difference is detected a [Result]
      *         is returned otherwise a None.
      */
-    inline fun <reified T: Any> diff(expected: T, actual: T): Result? = diff(expected, actual, null)
+    inline fun <reified T : Any> diff(expected: T, actual: T): Result? = diff(expected, actual, null)
 
     /**
      * Computes the diff for two snippets of json both of expected type `T`.
@@ -99,9 +99,9 @@ object JsonDiff {
      * ==Usage==
      *
      *
-     *   private fun normalize(jsonNode: JsonNode): JsonNode = jsonNode match {
-     *     case on: ObjectNode => on.put("time", "1970-01-01T00:00:00Z")
-     *     case _ => jsonNode
+     *   private fun normalize(jsonNode: JsonNode): JsonNode = when(jsonNode) {
+     *     ObjectNode -> on.put("time", "1970-01-01T00:00:00Z")
+     *     else -> jsonNode
      *   }
      *
      *   val expected = """{"foo": "bar", "time": ""1970-01-01T00:00:00Z"}"""
@@ -129,8 +129,10 @@ object JsonDiff {
             val result = Result(
                 expected = expectedJsonNode,
                 expectedPrettyString = mapper.writeValueAsString(expectedJsonNode, prettyPrint = true),
+                expectedJsonSorted = toSortedString(expectedJsonNode),
                 actual = actualJsonNode,
-                actualPrettyString = mapper.writeValueAsString(actualJsonNode, prettyPrint = true)
+                actualPrettyString = mapper.writeValueAsString(actualJsonNode, prettyPrint = true),
+                actualJsonSorted = toSortedString(actualJsonNode)
             )
             result
         } else null
@@ -146,8 +148,8 @@ object JsonDiff {
      * @throws AssertionError - when the expected does not match the actual.
      */
     @Throws(AssertionError::class)
-    fun <T: Any> assertDiff(expected: T, actual: T): Unit =
-        assertDiff<T>(expected, actual, null, System.out)
+    fun <T : Any> assertDiff(expected: T, actual: T): Unit =
+        assertDiff(expected, actual, null, System.out)
 
     /**
      * Asserts that the actual equals the expected. Will throw an [AssertionError] with details
@@ -160,11 +162,11 @@ object JsonDiff {
      * @throws AssertionError - when the expected does not match the actual.
      */
     @Throws(AssertionError::class)
-    fun <T: Any> assertDiff(
+    fun <T : Any> assertDiff(
         expected: T,
         actual: T,
         normalizeFn: ((JsonNode) -> JsonNode)?
-    ): Unit = assertDiff<T>(expected, actual, normalizeFn, System.out)
+    ): Unit = assertDiff(expected, actual, normalizeFn, System.out)
 
     /**
      * Asserts that the actual equals the expected. Will throw an [AssertionError] with details
@@ -177,8 +179,8 @@ object JsonDiff {
      * @throws AssertionError - when the expected does not match the actual.
      */
     @Throws(AssertionError::class)
-    fun <T: Any> assertDiff(expected: T, actual: T, p: PrintStream): Unit =
-        assertDiff<T>(expected, actual, null, p)
+    fun <T : Any> assertDiff(expected: T, actual: T, p: PrintStream): Unit =
+        assertDiff(expected, actual, null, p)
 
     /**
      * Asserts that the actual equals the expected. Will throw an [AssertionError] with details
@@ -192,12 +194,12 @@ object JsonDiff {
      * @throws AssertionError - when the expected does not match the actual.
      */
     @Throws(AssertionError::class)
-    fun <T: Any> assertDiff(
+    fun <T : Any> assertDiff(
         expected: T,
         actual: T,
         normalizeFn: ((JsonNode) -> JsonNode)?,
         p: PrintStream
-    ): Unit {
+    ) {
         when (val result = diff(expected, actual, normalizeFn)) {
             null -> Unit // do nothing -- no difference
             else -> {
@@ -212,7 +214,7 @@ object JsonDiff {
 
     private fun tryJsonNodeParse(expectedJsonStr: String): JsonNode {
         return try {
-            mapper.parse<JsonNode>(expectedJsonStr)
+            mapper.readValue<JsonNode>(expectedJsonStr)
         } catch (e: Exception) {
             if (NonFatal.isNonFatal(e)) {
                 TextNode(expectedJsonStr)

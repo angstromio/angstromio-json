@@ -24,6 +24,7 @@ if (file('../angstromio-util').exists()) {
 if (file('../angstromio-validator').exists()) {
     includeBuild('../angstromio-validator') {
         dependencySubstitution {
+            substitute module('io.angstrom:angstromio-constraints') using project(':constraints-lib')
             substitute module('io.angstrom:angstromio-validator') using project(':validator-lib')
         }
     }
@@ -39,6 +40,7 @@ if (file('angstromio-util').exists()) {
 if (file('angstromio-validator').exists()) {
     includeBuild('angstromio-validator') {
         dependencySubstitution {
+            substitute module('io.angstrom:angstromio-constraints') using project(':constraints-lib')
             substitute module('io.angstrom:angstromio-validator') using project(':validator-lib')
         }
     }
