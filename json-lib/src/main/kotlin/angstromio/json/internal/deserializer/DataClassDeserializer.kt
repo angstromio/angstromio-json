@@ -66,6 +66,8 @@ import kotlin.reflect.KParameter
 import kotlin.reflect.KType
 import kotlin.reflect.full.companionObjectInstance
 import kotlin.reflect.full.starProjectedType
+import kotlin.reflect.jvm.javaConstructor
+import kotlin.reflect.jvm.javaMethod
 import kotlin.reflect.jvm.javaType
 import kotlin.reflect.jvm.jvmErasure
 import kotlin.reflect.jvm.kotlinFunction
@@ -222,26 +224,21 @@ internal class DataClassDeserializer(
         jsonNode: JsonNode
     ): Any? {
         val jsonFieldNames: List<String> = jsonNode.fieldNames().asSequence().toList()
-        val parameterToJsonNameMap: Map<KParameter, String> = fields.associate { it.parameter to it.name }
 
         handleUnknownFields(jsonParser, context, jsonFieldNames, fields.map { it.name })
         val (values, parseErrors) = parseConstructorValues(jsonParser, context, jsonNode)
 
         // execute field validations
-        val results = mutableListOf<DataClassFieldMappingException>()
-        parameterToJsonNameMap.map { (parameter, name) ->
-            val value = values[parameter]
-            results.addAll(
-                executeFieldValidations(
-                    validator = validator,
-                    config = config,
-                    clazz = clazz,
-                    fieldName = name,
-                    value = value
-                )
+        val validationErrors =
+            executeFieldValidations(
+                validator = validator,
+                config = config,
+                kotlinFunction = creator.kotlinFunction,
+                mixinClazz = mixinClazz,
+                fieldNames = fields.map { it.name },
+                parameterValues = fields.map { field -> values[field.parameter] },
+                instance = creator.getInstanceParameter?.second
             )
-        }
-        val validationErrors = results.toList()
 
         val errors = parseErrors + validationErrors
         if (errors.isNotEmpty()) throw DataClassMappingException(errors.toSet())
@@ -507,7 +504,7 @@ internal class DataClassDeserializer(
         parameterValues: Map<KParameter, Any?>
     ): Any? {
         val values = if (creator.hasInstanceParameter) {
-            parameterValues + creator.getInstanceParameter
+            mapOf(creator.getInstanceParameter!!) + parameterValues
         } else parameterValues
 
         val obj = try {
@@ -526,9 +523,13 @@ internal class DataClassDeserializer(
             }
             throw ValueInstantiationException.from(jsonParser, message)
         }
-        val postConstructValidationErrors = executePostConstructValidations(
-            jsonParser = jsonParser, validator = validator, config = config, obj = obj
-        )
+        val postConstructValidationErrors =
+            executePostConstructValidations(
+                jsonParser = jsonParser,
+                validator = validator,
+                config = config,
+                obj = obj
+            )
         if (postConstructValidationErrors.isNotEmpty()) throw DataClassMappingException(postConstructValidationErrors.toSet())
 
         return obj
@@ -593,8 +594,11 @@ internal class DataClassDeserializer(
 
             propertyDefinitions.add(
                 PropertyDefinition(
-                    parameterJavaType, SimpleBeanPropertyDefinition.construct(
-                        config, annotatedParameter, PropertyName(constructorParamDescriptor.name)
+                    parameterJavaType,
+                    SimpleBeanPropertyDefinition.construct(
+                        config,
+                        annotatedParameter,
+                        PropertyName(constructorParamDescriptor.name)
                     )
                 )
             )
@@ -627,9 +631,13 @@ internal class DataClassDeserializer(
 
             val hasInstanceParameter: Boolean = parameters.any { it.kind == KParameter.Kind.INSTANCE }
 
-            val getInstanceParameter: Pair<KParameter, Any?> by lazy {
-                val instanceParameter = parameters.first { it.kind == KParameter.Kind.INSTANCE }
-                Pair(instanceParameter, companion)
+            val getInstanceParameter: Pair<KParameter, Any?>? by lazy {
+                val instanceParameter = parameters.find { it.kind == KParameter.Kind.INSTANCE }
+                when (instanceParameter) {
+                    null -> null
+                    else ->
+                        Pair(instanceParameter, companion)
+                }
             }
 
             val parameterTypes: Array<Class<*>> by lazy {
@@ -673,19 +681,56 @@ internal class DataClassDeserializer(
         private fun executeFieldValidations(
             validator: Validator?,
             config: DeserializationConfig,
-            clazz: Class<*>,
-            fieldName: String,
-            value: Any?
+            kotlinFunction: KFunction<*>?,
+            mixinClazz: Class<*>?,
+            fieldNames: List<String>,
+            parameterValues: List<Any?>,
+            instance: Any?
         ): List<DataClassFieldMappingException> {
             val results = mutableListOf<DataClassFieldMappingException>()
-            if (validator != null) {
-                (validator.validateValue(clazz, fieldName, value) as Set<ConstraintViolation<Any>>).map { violation ->
+            if (validator != null && kotlinFunction != null) {
+                val violations = try {
+                    val dataClassValidator = validator.unwrap(DataClassValidator::class.java)
+                    val descriptor = dataClassValidator.getConstraintsForKotlinFunction(kotlinFunction as KFunction<Any>, mixinClazz = mixinClazz)
+                    if (kotlinFunction.javaConstructor != null) {
+                        dataClassValidator.validateConstructorParameters(
+                            constructor = kotlinFunction.javaConstructor!!,
+                            constructorDescriptor = descriptor,
+                            fieldNames = fieldNames,
+                            parameterValues = parameterValues.toTypedArray()
+                        )
+                    } else if (kotlinFunction.javaMethod != null) {
+                        dataClassValidator.validateParameters(
+                            method = kotlinFunction.javaMethod!!,
+                            methodDescriptor = descriptor,
+                            fieldNames = fieldNames,
+                            parameterValues = parameterValues.toTypedArray()
+                        )
+                    } else emptySet()
+                } catch (e: ValidationException) {
+                    // DataClassValidator not supported, continue with given validator
+                    if (kotlinFunction.javaConstructor != null) {
+                        validator.forExecutables().validateConstructorParameters(
+                            /* constructor      = */ kotlinFunction.javaConstructor!!,
+                            /* parameterValues  = */ parameterValues.toTypedArray()
+                        )
+                    } else if (kotlinFunction.javaMethod != null) {
+                        validator.forExecutables().validateParameters(
+                            /* object           = */ instance,
+                            /* method           = */ kotlinFunction.javaMethod!!,
+                            /* parameterValues  = */ parameterValues.toTypedArray()
+                        )
+                    } else emptySet()
+                }
+
+                violations.map { violation ->
                     results.add(
                         DataClassFieldMappingException(
                             DataClassFieldMappingException.PropertyPath.leaf(
                                 applyPropertyNamingStrategy(config, violation.propertyPath.getLeafNode().toString())
                             ), DataClassFieldMappingException.Reason(
-                                message = violation.message, detail = DataClassFieldMappingException.ValidationError(
+                                message = violation.message,
+                                detail = DataClassFieldMappingException.ValidationError(
                                     violation,
                                     DataClassFieldMappingException.ValidationError.Location.Field,
                                     violation.getDynamicPayload(Payload::class.java)

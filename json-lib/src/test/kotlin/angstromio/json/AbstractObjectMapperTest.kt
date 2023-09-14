@@ -4,6 +4,7 @@ import angstromio.json.exceptions.DataClassFieldMappingException
 import angstromio.json.exceptions.DataClassMappingException
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.module.kotlin.readValue
 import io.kotest.assertions.fail
 import io.kotest.core.spec.style.FunSpec
@@ -13,6 +14,16 @@ import org.junit.jupiter.api.assertThrows
 import kotlin.reflect.full.isSubclassOf
 
 abstract class AbstractObjectMapperTest : FunSpec() {
+
+    class MixInAnnotationsModule : SimpleModule() {
+        init {
+            setMixInAnnotation(TestClasses.Point::class.java, TestClasses.PointMixin::class.java)
+            setMixInAnnotation(
+                TestClasses.ClassShouldUseKebabCaseFromMixin::class.java, TestClasses.KebabCaseMixin::class.java
+            )
+        }
+    }
+
     abstract val mapper: ObjectMapper
 
     internal inline fun <reified T : Any> readValue(string: String): T =

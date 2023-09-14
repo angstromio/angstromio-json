@@ -1004,11 +1004,11 @@ object TestClasses {
 
     data class PatternNotMatched(val pattern: String, val regex: Regex) : Payload
 
+    data class Points(val first: Point, val second: Point)
+
     data class Point(val abscissa: Int, val ordinate: Int) {
         fun area(): Int = abscissa * ordinate
     }
-
-    data class Points(val first: Point, val second: Point)
 
     interface PointMixin {
         @get:JsonProperty("x")

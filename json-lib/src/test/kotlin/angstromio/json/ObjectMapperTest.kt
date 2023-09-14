@@ -5,7 +5,6 @@ import angstromio.json.exceptions.DataClassMappingException
 import angstromio.util.extensions.Strings
 import arrow.core.Either
 import arrow.integrations.jackson.module.registerArrowModule
-import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.DeserializationFeature
@@ -15,14 +14,12 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.MapperFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.PropertyNamingStrategies
-import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.databind.exc.InvalidDefinitionException
 import com.fasterxml.jackson.databind.exc.InvalidFormatException
 import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.databind.node.IntNode
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.databind.node.TreeTraversingParser
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.jsonMapper
 import com.fasterxml.jackson.module.kotlin.kotlinModule
@@ -63,18 +60,10 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
     }
 
-    class MixInAnnotationsModule : SimpleModule() {
-        init {
-            setMixInAnnotation(TestClasses.Point::class.java, TestClasses.PointMixin::class.java)
-            setMixInAnnotation(
-                TestClasses.ClassShouldUseKebabCaseFromMixin::class.java, TestClasses.KebabCaseMixin::class.java
-            )
-        }
-    }
-
     private val alice: TestClasses.Person =
         TestClasses.Person(id = 1, name = "Alice", age = 32, age_with_default = 24, nickname = "751A69C24D97009")
-    private val aliceJson: String = """{"id":1,"name":"Alice","age":32,"age_with_default":24,"nickname":"751A69C24D97009"}"""
+    private val aliceJson: String =
+        """{"id":1,"name":"Alice","age":32,"age_with_default":24,"nickname":"751A69C24D97009"}"""
 
     override val mapper: ObjectMapper by lazy {
         val m: ObjectMapper = ObjectMapper().defaultMapper()
@@ -617,12 +606,14 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
 
         test("simple tests#readValue json with extra field at end") {
-            val person = readValue<TestClasses.Person>("""{"id" : 1,"name" : "Alice","age" : 32,"age_with_default" : 24,"nickname" : "751A69C24D97009","extra" : "extra"}""")
+            val person =
+                readValue<TestClasses.Person>("""{"id" : 1,"name" : "Alice","age" : 32,"age_with_default" : 24,"nickname" : "751A69C24D97009","extra" : "extra"}""")
             person should be(alice)
         }
 
         test("simple tests#readValue json with extra field in middle") {
-            val person = readValue<TestClasses.Person>("""{"id" : 1,"name" : "Alice","age" : 32,"extra" : "extra","age_with_default" : 24,"nickname" : "751A69C24D97009"}""")
+            val person =
+                readValue<TestClasses.Person>("""{"id" : 1,"name" : "Alice","age" : 32,"extra" : "extra","age_with_default" : 24,"nickname" : "751A69C24D97009"}""")
             person should be(alice)
         }
 
@@ -647,7 +638,8 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
 
         test("simple tests#readValue nested json with missing fields") {
             assertJsonParse<TestClasses.Car>(
-                """{"id" : 0,"make": "Foo","year": 2000,"passengers" : [ { "id": "-1", "age": "blah" } ]}""", withErrors = listOf(
+                """{"id" : 0,"make": "Foo","year": 2000,"passengers" : [ { "id": "-1", "age": "blah" } ]}""",
+                withErrors = listOf(
                     "make: 'Foo' is not a valid CarMake with valid values: FORD, VOLKSWAGEN, TOYOTA, HONDA",
                     "model: field is required",
                     "owners: field is required",
@@ -667,7 +659,8 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
 
         test("simple tests#readValue json with missing 'nickname' field that has a string default") {
-            val person = readValue<TestClasses.Person>("""{"id" : 1,"name" : "Alice","age" : 32,"age_with_default" : 24}""")
+            val person =
+                readValue<TestClasses.Person>("""{"id" : 1,"name" : "Alice","age" : 32,"age_with_default" : 24}""")
             person should be(alice.copy(nickname = "unknown"))
         }
 
@@ -706,7 +699,11 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
 
         test("simple tests#Prevent overwriting val in data class") {
-            readValue<TestClasses.ClassWithVal>("""{"name" : "Bob","type" : "dog"}""") should be(TestClasses.ClassWithVal("Bob"))
+            readValue<TestClasses.ClassWithVal>("""{"name" : "Bob","type" : "dog"}""") should be(
+                TestClasses.ClassWithVal(
+                    "Bob"
+                )
+            )
         }
 
         test("simple tests#readValue WithEmptyJsonProperty then write and see if it equals original") {
@@ -766,28 +763,30 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         test("enums#complex") {
             JsonDiff.assertDiff(
                 expected = TestClasses.ClassWithComplexEnums(
-                "Bob",
-                CarMake.VOLKSWAGEN,
-                CarMake.FORD,
-                listOf(CarMake.VOLKSWAGEN, CarMake.FORD),
-                setOf(CarMake.FORD, CarMake.VOLKSWAGEN)
-            ), actual = readValue<TestClasses.ClassWithComplexEnums>(
-                """{"name" : "Bob","make" : "VOLKSWAGEN","make_opt" : "FORD","make_seq" : ["VOLKSWAGEN", "FORD"],"make_set" : ["FORD", "VOLKSWAGEN"]}"""),
+                    "Bob",
+                    CarMake.VOLKSWAGEN,
+                    CarMake.FORD,
+                    listOf(CarMake.VOLKSWAGEN, CarMake.FORD),
+                    setOf(CarMake.FORD, CarMake.VOLKSWAGEN)
+                ), actual = readValue<TestClasses.ClassWithComplexEnums>(
+                    """{"name" : "Bob","make" : "VOLKSWAGEN","make_opt" : "FORD","make_seq" : ["VOLKSWAGEN", "FORD"],"make_set" : ["FORD", "VOLKSWAGEN"]}"""
+                ),
                 normalizeFn = { jsonNode -> // kotlin mutable set order is non-deterministic between test runs
-                when (jsonNode) {
-                    is ObjectNode -> {
-                        val arrayNode = jsonNode.putArray("make_set")
-                        setOf(CarMake.FORD, CarMake.VOLKSWAGEN).map { arrayNode.add(it.name) }
-                        jsonNode.set("make_set", arrayNode)
-                    }
+                    when (jsonNode) {
+                        is ObjectNode -> {
+                            val arrayNode = jsonNode.putArray("make_set")
+                            setOf(CarMake.FORD, CarMake.VOLKSWAGEN).map { arrayNode.add(it.name) }
+                            jsonNode.set("make_set", arrayNode)
+                        }
 
-                    else -> jsonNode
-                }
-            })
+                        else -> jsonNode
+                    }
+                })
         }
 
         test("enums#complex case insensitive") {
-            val caseInsensitiveEnumMapper = mapper.makeCopy().configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS, true)
+            val caseInsensitiveEnumMapper =
+                mapper.makeCopy().configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS, true)
 
             JsonDiff.assertDiff(expected = TestClasses.ClassWithComplexEnums(
                 "Bob",
@@ -828,7 +827,8 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
 
         test("invalid LocalDateTime 1") {
-            assertJsonParse<TestClasses.ClassWithDateTime>("""{"date_time" : ""}""",
+            assertJsonParse<TestClasses.ClassWithDateTime>(
+                """{"date_time" : ""}""",
                 withErrors = listOf("date_time: error parsing ''")
             )
         }
@@ -855,11 +855,19 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         test("Duration deserialize") {
             // cannot currently deserialize Kotlin Durations: https://github.com/FasterXML/jackson-module-kotlin/commit/79d8e4ebc404015ae6047e4d84b79ace5480d266
             assertThrows<InvalidDefinitionException> {
-                readValue<TestClasses.ClassWithKotlinDuration>("""{"duration": 21600000000000}""") should be(TestClasses.ClassWithKotlinDuration(3.hours))
+                readValue<TestClasses.ClassWithKotlinDuration>("""{"duration": 21600000000000}""") should be(
+                    TestClasses.ClassWithKotlinDuration(
+                        3.hours
+                    )
+                )
             }
 
             // Java Durations work with the JSR310Module
-            readValue<TestClasses.ClassWithJavaDuration>("""{"duration": "PT3H"}""") should be(TestClasses.ClassWithJavaDuration(JavaDuration.ofHours(3)))
+            readValue<TestClasses.ClassWithJavaDuration>("""{"duration": "PT3H"}""") should be(
+                TestClasses.ClassWithJavaDuration(
+                    JavaDuration.ofHours(3)
+                )
+            )
         }
 
         test("Duration deserialize invalid") {
@@ -876,15 +884,27 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
 
         test("escaped fields#long") {
-            readValue<TestClasses.ClassWithEscapedLong>("""{"1-5" : 10}""") should be(TestClasses.ClassWithEscapedLong(`1-5` = 10))
+            readValue<TestClasses.ClassWithEscapedLong>("""{"1-5" : 10}""") should be(
+                TestClasses.ClassWithEscapedLong(
+                    `1-5` = 10
+                )
+            )
         }
 
         test("escaped fields#string") {
-            readValue<TestClasses.ClassWithEscapedString>("""{"1-5" : "10"}""") should be(TestClasses.ClassWithEscapedString(`1-5` = "10"))
+            readValue<TestClasses.ClassWithEscapedString>("""{"1-5" : "10"}""") should be(
+                TestClasses.ClassWithEscapedString(
+                    `1-5` = "10"
+                )
+            )
         }
 
         test("escaped fields#non-unicode escaped") {
-            readValue<TestClasses.ClassWithEscapedNormalString>("""{"a" : "foo"}""") should be(TestClasses.ClassWithEscapedNormalString("foo"))
+            readValue<TestClasses.ClassWithEscapedNormalString>("""{"a" : "foo"}""") should be(
+                TestClasses.ClassWithEscapedNormalString(
+                    "foo"
+                )
+            )
         }
 
         test("escaped fields#unicode and non-unicode fields") {
@@ -925,7 +945,7 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
             generate(TestClasses.DataClass(1, "Coda")) should be("""{"id":1,"name":"Coda"}""")
         }
 
-        test("A basic data class is parseable from a JSON object with corresponding fields") {
+        test("A basic data class is parse-able from a JSON object with corresponding fields") {
             readValue<TestClasses.DataClass>("""{"id":111,"name":"Coda"}""") should be(
                 TestClasses.DataClass(
                     111L, "Coda"
@@ -933,7 +953,7 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
             )
         }
 
-        test("A basic data class is parseable from a JSON object with extra fields") {
+        test("A basic data class is parse-able from a JSON object with extra fields") {
             readValue<TestClasses.DataClass>("""{"id":1,"name":"Coda","derp":100}""") should be(
                 TestClasses.DataClass(
                     1, "Coda"
@@ -941,7 +961,7 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
             )
         }
 
-        test("A basic data class is not parseable from an incomplete JSON object") {
+        test("A basic data class is not parse-able from an incomplete JSON object") {
             assertThrows<Exception> {
                 readValue<TestClasses.DataClass>("""{"id":1}""")
             }
@@ -951,11 +971,11 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
             generate(TestClasses.ClassWithLazyVal(1)) should be("""{"id":1,"woo":"yeah"}""")
         }
 
-        test("A data class with lazy fields is parseable from a JSON object without those fields") {
+        test("A data class with lazy fields is parse-able from a JSON object without those fields") {
             readValue<TestClasses.ClassWithLazyVal>("""{"id":1}""") should be(TestClasses.ClassWithLazyVal(1))
         }
 
-        test("A data class with lazy fields is not parseable from an incomplete JSON object") {
+        test("A data class with lazy fields is not parse-able from an incomplete JSON object") {
             assertThrows<Exception> {
                 readValue<TestClasses.ClassWithLazyVal>("""{}""")
             }
@@ -967,7 +987,7 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
             generate(TestClasses.ClassWithIgnoredFieldsMatchAfterToSnakeCase(1)) should be("""{"id":1}""")
         }
 
-        test("A data class with some ignored members is not parseable from an incomplete JSON object") {
+        test("A data class with some ignored members is not parse-able from an incomplete JSON object") {
             assertThrows<Exception> {
                 readValue<TestClasses.ClassWithIgnoredField>("""{}""")
             }
@@ -980,7 +1000,7 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
             generate(TestClasses.ClassWithTransientField(1)) should be("""{"id":1,"lol":"asdf"}""")
         }
 
-        test("A data class with transient members is parseable from a JSON object without those fields") {
+        test("A data class with transient members is parse-able from a JSON object without those fields") {
             readValue<TestClasses.ClassWithTransientField>("""{"id":1}""") should be(
                 TestClasses.ClassWithTransientField(
                     1
@@ -988,7 +1008,7 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
             )
         }
 
-        test("A data class with some transient members is not parseable from an incomplete JSON object") {
+        test("A data class with some transient members is not parse-able from an incomplete JSON object") {
             assertThrows<Exception> {
                 readValue<TestClasses.ClassWithTransientField>("""{}""")
             }
@@ -998,7 +1018,7 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
             generate(TestClasses.ClassWithLazyField(1)) should be("""{"id":1}""")
         }
 
-        test("A data class with lazy vals is parseable from a JSON object without those fields") {
+        test("A data class with lazy vals is parse-able from a JSON object without those fields") {
             readValue<TestClasses.ClassWithLazyField>("""{"id":1}""") should be(TestClasses.ClassWithLazyField(1))
         }
 
@@ -1013,7 +1033,7 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
 
         test(
-            "A data class with an Nullable<String> member is parseable from a JSON object with that field"
+            "A data class with an Nullable<String> member is parse-able from a JSON object with that field"
         ) {
             readValue<TestClasses.ClassWithNullable>("""{"value":"what"}""") should be(TestClasses.ClassWithNullable("what"))
         }
@@ -1025,13 +1045,13 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
 
         test(
-            "A data class with an Nullable<String> member is parseable from a JSON object without that field"
+            "A data class with an Nullable<String> member is parse-able from a JSON object without that field"
         ) {
             readValue<TestClasses.ClassWithNullable>("""{}""") should be(TestClasses.ClassWithNullable(null))
         }
 
         test(
-            "A data class with an Nullable<String> member is parseable from a JSON object with a null value for that field"
+            "A data class with an Nullable<String> member is parse-able from a JSON object with a null value for that field"
         ) {
             readValue<TestClasses.ClassWithNullable>("""{"value":null}""") should be(TestClasses.ClassWithNullable(null))
         }
@@ -1065,7 +1085,11 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
 
         test("issues#data class nested within an object") {
-            readValue<TestClasses.Obj.NestedClassInObject>("""{"id": "foo"}""") should be(TestClasses.Obj.NestedClassInObject(id = "foo"))
+            readValue<TestClasses.Obj.NestedClassInObject>("""{"id": "foo"}""") should be(
+                TestClasses.Obj.NestedClassInObject(
+                    id = "foo"
+                )
+            )
         }
 
         test(
@@ -1079,7 +1103,9 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
 
         test("deserialization#data class nested within a companion object works") {
-            readValue<TestClasses.TypeAndCompanion.Companion.NestedClassInCompanion>("""{"id": "foo"}""") should be(TestClasses.TypeAndCompanion.Companion.NestedClassInCompanion(id = "foo"))
+            readValue<TestClasses.TypeAndCompanion.Companion.NestedClassInCompanion>("""{"id": "foo"}""") should be(
+                TestClasses.TypeAndCompanion.Companion.NestedClassInCompanion(id = "foo")
+            )
         }
 
 
@@ -1097,13 +1123,19 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
 
         test("deserialization#data class with seq of longs") {
-            val obj = readValue<TestClasses.ClassWithSeqOfLongs>("""{"seq": [%s]}""".format((1004..1500).joinToString()))
+            val obj =
+                readValue<TestClasses.ClassWithSeqOfLongs>("""{"seq": [%s]}""".format((1004..1500).joinToString()))
             obj.seq.sorted() should be(expected = (1004L..1500L).toList().toTypedArray())
         }
 
         test("deserialization#nested data class with collection of longs") {
             val idsStr = (1004..1500).joinToString()
-            val obj = readValue<TestClasses.ClassWithNestedSeqLong>("""{"seq_class" : {"seq": [%s]},"set_class" : {"set": [%s]}}""".format(idsStr, idsStr))
+            val obj = readValue<TestClasses.ClassWithNestedSeqLong>(
+                """{"seq_class" : {"seq": [%s]},"set_class" : {"set": [%s]}}""".format(
+                    idsStr,
+                    idsStr
+                )
+            )
             obj.seqClass.seq.sorted() should be(expected = (1004L..1500L).toList().toTypedArray())
             obj.setClass.set.toList().sorted() should be(expected = (1004L..1500L).toList().toTypedArray())
         }
@@ -1129,7 +1161,7 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
 
         test(
-            "deserialization#data class with members of all types is parseable from a JSON object with those fields"
+            "deserialization#data class with members of all types is parse-able from a JSON object with those fields"
         ) {
             val vector = Vector<Int>()
             vector.addAll(listOf(22, 23, 24))
@@ -1164,13 +1196,13 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
             readValue<TestClasses.ClassWithAllTypes>(json) should be(expected)
         }
 
-        test("deserialization# data class that throws an exception is not parseable from a JSON object") {
+        test("deserialization# data class that throws an exception is not parse-able from a JSON object") {
             assertThrows<JsonMappingException> {
                 readValue<TestClasses.ClassWithException>("""{}""")
             }
         }
 
-        test("deserialization#data class nested inside of an object is parseable from a JSON object") {
+        test("deserialization#data class nested inside of an object is parse-able from a JSON object") {
             readValue<TestClasses.OuterObject.NestedClass>("""{"id": 1}""") should be(
                 TestClasses.OuterObject.NestedClass(
                     1
@@ -1179,15 +1211,16 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
 
         test(
-            "deserialization#data class nested inside of an object nested inside of an object is parseable from a JSON object"
+            "deserialization#data class nested inside of an object nested inside of an object is parse-able from a JSON object"
         ) {
             readValue<TestClasses.OuterObject.InnerObject.SuperNestedClass>("""{"id": 1}""") should be(
                 TestClasses.OuterObject.InnerObject.SuperNestedClass(1)
             )
         }
 
-        test("A data class with array members is parseable from a JSON object") {
-            val jsonStr = """{"one":"1","two":["a","b","c"],"three":[1,2,3],"four":[4, 5],"five":["x", "y"],"bools":["true", false],"bytes":[1,2],"doubles":[1,5.0],"floats":[1.1, 22]}"""
+        test("A data class with array members is parse-able from a JSON object") {
+            val jsonStr =
+                """{"one":"1","two":["a","b","c"],"three":[1,2,3],"four":[4, 5],"five":["x", "y"],"bools":["true", false],"bytes":[1,2],"doubles":[1,5.0],"floats":[1.1, 22]}"""
             val c = readValue<TestClasses.ClassWithArrays>(jsonStr)
             c.one should be("1")
             c.two should be(arrayOf("a", "b", "c"))
@@ -1299,7 +1332,11 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
 
         //Jackson parses numbers into boolean type without error. see https://jira.codehaus.org/browse/JACKSON-78
         test("deserialization#data class with List<Boolean>") {
-            readValue<TestClasses.ClassWithSeqBooleans>(""" {"foos": [100, 5, 0, 9]}""") should be(TestClasses.ClassWithSeqBooleans(listOf(true, true, false, true)))
+            readValue<TestClasses.ClassWithSeqBooleans>(""" {"foos": [100, 5, 0, 9]}""") should be(
+                TestClasses.ClassWithSeqBooleans(
+                    listOf(true, true, false, true)
+                )
+            )
         }
 
         //Jackson parses numbers into boolean type without error. see https://jira.codehaus.org/browse/JACKSON-78
@@ -1352,7 +1389,9 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         test(
             "deserialization#jackson JsonDeserialize annotations deserializes json to data class with 2 decimal places for mandatory field"
         ) {
-            readValue<TestClasses.ClassWithCustomDecimalFormat>(""" {"my_big_decimal": 23.1201}""") should be(TestClasses.ClassWithCustomDecimalFormat(BigDecimal(23.12, defaultBigDecimalMathContext), null))
+            readValue<TestClasses.ClassWithCustomDecimalFormat>(""" {"my_big_decimal": 23.1201}""") should be(
+                TestClasses.ClassWithCustomDecimalFormat(BigDecimal(23.12, defaultBigDecimalMathContext), null)
+            )
         }
 
         test("deserialization#jackson JsonDeserialize annotations long with JsonDeserialize") {
@@ -1372,7 +1411,11 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
 
         test("deserialization#jackson JsonDeserialize annotations opt long with JsonDeserialize") {
-            readValue<TestClasses.ClassWithNullableLongAndDeserializer>("""{"opt_long": 12345}""") should be(TestClasses.ClassWithNullableLongAndDeserializer(12345))
+            readValue<TestClasses.ClassWithNullableLongAndDeserializer>("""{"opt_long": 12345}""") should be(
+                TestClasses.ClassWithNullableLongAndDeserializer(
+                    12345
+                )
+            )
         }
 
         test("serialization#upport sealed interfaces and data objects#json serialization") {
@@ -1400,19 +1443,27 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
             val m = jacksonObjectMapper()
 
             // but deserialization works for the primary constructor
-            m.readValue<TestClasses.ClassWithMultipleConstructors>("""{"number1" : 12345,"number2" : 65789,"number3" : 99999}""") should be(TestClasses.ClassWithMultipleConstructors(12345L, 65789L, 99999L))
+            m.readValue<TestClasses.ClassWithMultipleConstructors>("""{"number1" : 12345,"number2" : 65789,"number3" : 99999}""") should be(
+                TestClasses.ClassWithMultipleConstructors(12345L, 65789L, 99999L)
+            )
 
             // but we do not support
             assertThrows<InvalidDefinitionException> {
-                readValue<TestClasses.ClassWithMultipleConstructors>("""{"number1" : 12345,"number2" : 65789,"number3" : 99999}""") should be(TestClasses.ClassWithMultipleConstructors(12345L, 65789L, 99999L))
+                readValue<TestClasses.ClassWithMultipleConstructors>("""{"number1" : 12345,"number2" : 65789,"number3" : 99999}""") should be(
+                    TestClasses.ClassWithMultipleConstructors(12345L, 65789L, 99999L)
+                )
             }
 
             // as well as for the secondary
-            m.readValue<TestClasses.ClassWithMultipleConstructors>("""{"number1" : "12345","number2" : "65789","number3" : "99999"}""".trimMargin()) should be(TestClasses.ClassWithMultipleConstructors(12345L, 65789L, 99999L))
+            m.readValue<TestClasses.ClassWithMultipleConstructors>("""{"number1" : "12345","number2" : "65789","number3" : "99999"}""".trimMargin()) should be(
+                TestClasses.ClassWithMultipleConstructors(12345L, 65789L, 99999L)
+            )
 
             // but we do not support
             assertThrows<InvalidDefinitionException> {
-                readValue<TestClasses.ClassWithMultipleConstructors>("""{"number1" : "12345","number2" : "65789","number3" : "99999"}""".trimMargin()) should be(TestClasses.ClassWithMultipleConstructors(12345L, 65789L, 99999L))
+                readValue<TestClasses.ClassWithMultipleConstructors>("""{"number1" : "12345","number2" : "65789","number3" : "99999"}""".trimMargin()) should be(
+                    TestClasses.ClassWithMultipleConstructors(12345L, 65789L, 99999L)
+                )
             }
         }
 
@@ -1458,7 +1509,12 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
 
         test("deserialization#simple class with boxed primitive constructor args") {
-            readValue<TestClasses.ClassWithBoxedPrimitives>("""{"events" : 2,"errors" : 0}""") should be(TestClasses.ClassWithBoxedPrimitives(2, 0))
+            readValue<TestClasses.ClassWithBoxedPrimitives>("""{"events" : 2,"errors" : 0}""") should be(
+                TestClasses.ClassWithBoxedPrimitives(
+                    2,
+                    0
+                )
+            )
         }
 
         test("deserialization#complex object with primitives") {
@@ -1767,9 +1823,11 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
 
         test("deserialization of json array into a string field") {
-            val json = """{"value": [{"languages": "es","reviewable": "tweet","baz": "too","foo": "bar","coordinates": "polar"}]}"""
+            val json =
+                """{"value": [{"languages": "es","reviewable": "tweet","baz": "too","foo": "bar","coordinates": "polar"}]}"""
 
-            val expected = TestClasses.WithJsonStringType("""[{"languages":"es","reviewable":"tweet","baz":"too","foo":"bar","coordinates":"polar"}]""")
+            val expected =
+                TestClasses.WithJsonStringType("""[{"languages":"es","reviewable":"tweet","baz":"too","foo":"bar","coordinates":"polar"}]""")
             readValue<TestClasses.WithJsonStringType>(json) should be(expected)
         }
 
