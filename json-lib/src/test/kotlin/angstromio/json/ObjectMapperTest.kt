@@ -761,7 +761,7 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
 
         test("enums#complex") {
-            JsonDiff.assertDiff(
+            JSONDiff.assertDiff(
                 expected = TestClasses.ClassWithComplexEnums(
                     "Bob",
                     CarMake.VOLKSWAGEN,
@@ -788,7 +788,7 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
             val caseInsensitiveEnumMapper =
                 mapper.makeCopy().configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS, true)
 
-            JsonDiff.assertDiff(expected = TestClasses.ClassWithComplexEnums(
+            JSONDiff.assertDiff(expected = TestClasses.ClassWithComplexEnums(
                 "Bob",
                 CarMake.VOLKSWAGEN,
                 CarMake.FORD,
@@ -1228,7 +1228,7 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
             c.four should be(arrayOf(4L, 5L))
             c.five should be(arrayOf('x', 'y'))
 
-            JsonDiff.assertDiff(
+            JSONDiff.assertDiff(
                 """{"bools":[true,false],"bytes":[1,2],"doubles":[1.0,5.0],"five":["x","y"],"floats":[1.1,22.0],"four":[4,5],"one":"1","three":[1,2,3],"two":["a","b","c"]}""",
                 generate(c)
             )

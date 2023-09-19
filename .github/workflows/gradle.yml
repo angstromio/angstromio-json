@@ -43,6 +43,13 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         ref: main
         path: ${{ github.workspace }}/angstromio-validator
+    - name: Checkout angstromio/angstromio-flags
+      uses: actions/checkout@v3
+      with:
+        repository: angstromio/angstromio-flags
+        token: ${{ secrets.GITHUB_TOKEN }}
+        ref: main
+        path: ${{ github.workspace }}/angstromio-flags
     - name: Build with Gradle
       uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
       with:

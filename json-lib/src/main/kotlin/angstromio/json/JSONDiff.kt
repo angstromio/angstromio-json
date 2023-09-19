@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.databind.node.TextNode
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import java.io.PrintStream
 
@@ -16,14 +15,14 @@ import java.io.PrintStream
  * It is intended to provide two modes of computing the differences in JSON strings. One is
  * for programmatic use and the other is for assertions, generally more useful in testing.
  *
- * The `diff` functions provide a [JsonDiff.Result] that contains the difference information if
+ * The `diff` functions provide a [JSONDiff.Result] that contains the difference information if
  * a difference was detected. This can be used to programmatically detect and handle differences
  * in JSON strings.
  *
  * The `assert` functions throw [AssertionError] when a difference is detected in the JSON strings.
  * These functions are generally more useful for the testing of JSON processing code.
  */
-object JsonDiff {
+object JSONDiff {
     private val mapper: ObjectMapper = ObjectMapper().defaultMapper()
     private val sortingObjectMapper: ObjectMapper by lazy {
         val newMapper = mapper.makeCopy()
@@ -48,7 +47,7 @@ object JsonDiff {
         }
     }
 
-    /** A [JsonDiff] result */
+    /** A [JSONDiff] result */
     data class Result internal constructor(
         val expected: JsonNode,
         val expectedPrettyString: String,
@@ -201,7 +200,7 @@ object JsonDiff {
             else -> {
                 p.println("JSON DIFF FAILED!")
                 result.let { p.println(it) }
-                throw AssertionError("${JsonDiff::class.qualifiedName} failure\n$result")
+                throw AssertionError("${JSONDiff::class.qualifiedName} failure\n$result")
             }
         }
     }

@@ -17,7 +17,7 @@ import io.kotest.property.arbitrary.map
 import io.kotest.property.arbitrary.of
 import io.kotest.property.arbitrary.string
 
-object JsonGenerator {
+internal object JSONGenerator {
     private val jsonNodeFactory: JsonNodeFactory = JsonNodeFactory(false)
 
     /** Generate either a ArrayNode or a ObjectNode */

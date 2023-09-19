@@ -43,7 +43,7 @@ abstract class AbstractObjectMapperTest : FunSpec() {
 
     internal inline fun <reified T : Any> assertJson(obj: T, expected: String) {
         val json = generate(obj)
-        JsonDiff.assertDiff(expected, json)
+        JSONDiff.assertDiff(expected, json)
         readValue<T>(json) should be(obj)
     }
 
@@ -63,7 +63,7 @@ abstract class AbstractObjectMapperTest : FunSpec() {
         clearStackTrace(e.errors)
 
         val actualMessages = e.errors.map { it.message }
-        JsonDiff.assertDiff(withErrors, actualMessages)
+        JSONDiff.assertDiff(withErrors, actualMessages)
     }
 
     internal inline fun <reified T : Any> assertJsonParse(json: String, withErrors: List<String>) {

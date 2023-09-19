@@ -14,14 +14,14 @@ rootProject.name = 'angstromio-json'
 include 'json-lib'
 
 // For Local
-if (file('../angstromio-util').exists()) {
+if (file('../angstromio-util').exists() && !hasProperty('publishing')) {
     includeBuild('../angstromio-util') {
         dependencySubstitution {
             substitute module('io.angstrom:angstromio-util') using project(':util-lib')
         }
     }
 }
-if (file('../angstromio-validator').exists()) {
+if (file('../angstromio-validator').exists() && !hasProperty('publishing')) {
     includeBuild('../angstromio-validator') {
         dependencySubstitution {
             substitute module('io.angstrom:angstromio-constraints') using project(':constraints-lib')
@@ -29,19 +29,33 @@ if (file('../angstromio-validator').exists()) {
         }
     }
 }
+if (file('../angstromio-flags').exists() && !hasProperty('publishing')) {
+    includeBuild('../angstromio-flags') {
+        dependencySubstitution {
+            substitute module('io.angstrom:angstromio-flags') using project(':flags-lib')
+        }
+    }
+}
 // for GitHub Actions
-if (file('angstromio-util').exists()) {
+if (file('angstromio-util').exists() && !hasProperty('publishing')) {
     includeBuild('angstromio-util') {
         dependencySubstitution {
             substitute module('io.angstrom:angstromio-util') using project(':util-lib')
         }
     }
 }
-if (file('angstromio-validator').exists()) {
+if (file('angstromio-validator').exists() && !hasProperty('publishing')) {
     includeBuild('angstromio-validator') {
         dependencySubstitution {
             substitute module('io.angstrom:angstromio-constraints') using project(':constraints-lib')
             substitute module('io.angstrom:angstromio-validator') using project(':validator-lib')
+        }
+    }
+}
+if (file('angstromio-flags').exists() && !hasProperty('publishing')) {
+    includeBuild('angstromio-flags') {
+        dependencySubstitution {
+            substitute module('io.angstrom:angstromio-flags') using project(':flags-lib')
         }
     }
 }
