@@ -1,6 +1,7 @@
 package angstromio.json
 
 import angstromio.flags.Flags
+import angstromio.flags.ParsingException
 import angstromio.json.exceptions.DataClassFieldMappingException
 import angstromio.json.exceptions.DataClassMappingException
 import angstromio.util.extensions.Anys.isInstanceOf
@@ -87,6 +88,100 @@ class JSONFlagTypeTest : FunSpec() {
             }
             e.isInstanceOf<DataClassMappingException>() should be(true)
             val errors = (e as DataClassMappingException).errors
+            errors.size shouldBeEqual 4
+            val mappedErrors = errors.associateBy { error -> error.path!!.names.joinToString(".") }
+
+            val nameFieldMappingException = mappedErrors["name"]!!
+            nameFieldMappingException.reason.message should be("must not be empty")
+            nameFieldMappingException.reason.detail::class.java should be(DataClassFieldMappingException.ValidationError::class.java)
+            when (val detail = nameFieldMappingException.reason.detail) {
+                is DataClassFieldMappingException.ValidationError -> {
+                    detail.location should be(DataClassFieldMappingException.ValidationError.Location.Field)
+                    val violation = detail.violation as ConstraintViolation<*>
+                    violation.propertyPath.toString() should be("ClassWithValidation.name")
+                    violation.message should be("must not be empty")
+                    violation.invalidValue should be("")
+                    violation.rootBeanClass should be(ClassWithValidation::class.java)
+                    violation.rootBean should beNull() // ValidationError.Field types do not have a root bean instance
+                }
+
+                else -> fail("")
+            }
+
+            val sizeFieldMappingException = mappedErrors["size"]!!
+            sizeFieldMappingException.reason.message should be("must be greater than or equal to 20")
+            sizeFieldMappingException.reason.detail::class.java should be(DataClassFieldMappingException.ValidationError::class.java)
+            when (val detail = sizeFieldMappingException.reason.detail) {
+                is DataClassFieldMappingException.ValidationError -> {
+                    detail.location should be(DataClassFieldMappingException.ValidationError.Location.Field)
+                    val violation = detail.violation as ConstraintViolation<*>
+                    violation.propertyPath.toString() should be("ClassWithValidation.size")
+                    violation.message should be("must be greater than or equal to 20")
+                    violation.invalidValue should be(0)
+                    violation.rootBeanClass should be(ClassWithValidation::class.java)
+                    violation.rootBean should beNull() // ValidationError.Field types do not have a root bean instance
+                }
+
+                else -> fail("")
+            }
+
+            val choiceFieldMappingException = mappedErrors["choice"]!!
+            choiceFieldMappingException.reason.message should be("X not one of [A, B, C]")
+            choiceFieldMappingException.reason.detail::class.java should be(DataClassFieldMappingException.ValidationError::class.java)
+            when (val detail = choiceFieldMappingException.reason.detail) {
+                is DataClassFieldMappingException.ValidationError -> {
+                    detail.location should be(DataClassFieldMappingException.ValidationError.Location.Field)
+                    val violation = detail.violation as ConstraintViolation<*>
+                    violation.propertyPath.toString() should be("ClassWithValidation.choice")
+                    violation.message should be("X not one of [A, B, C]")
+                    violation.invalidValue should be("X")
+                    violation.rootBeanClass should be(ClassWithValidation::class.java)
+                    violation.rootBean should beNull() // ValidationError.Field types do not have a root bean instance
+                }
+
+                else -> fail("")
+            }
+
+            val uuidFieldMappingException = mappedErrors["uuid"]!!
+            uuidFieldMappingException.reason.message should be("must be a valid UUID")
+            uuidFieldMappingException.reason.detail::class.java should be(DataClassFieldMappingException.ValidationError::class.java)
+            when (val detail = uuidFieldMappingException.reason.detail) {
+                is DataClassFieldMappingException.ValidationError -> {
+                    detail.location should be(DataClassFieldMappingException.ValidationError.Location.Field)
+                    val violation = detail.violation as ConstraintViolation<*>
+                    violation.propertyPath.toString() should be("ClassWithValidation.uuid")
+                    violation.message should be("must be a valid UUID")
+                    violation.invalidValue should be("DefinitelyNotAUUID")
+                    violation.rootBeanClass should be(ClassWithValidation::class.java)
+                    violation.rootBean should beNull() // ValidationError.Field types do not have a root bean instance
+                }
+
+                else -> fail("")
+            }
+        }
+
+        test("JSONFlagType#JSON parse with validation") {
+            val jsonFlagType = JSONFlagType<ClassWithValidation>(mapper)
+
+            val flags = Flags("test")
+            flags.required(
+                name = "flag.with.validation",
+                description = "A validated JSON blob.",
+                flagType = jsonFlagType
+            )
+
+            val e = assertThrows< ParsingException> {
+                flags.parse(
+                    arrayOf(
+                        "-flag.with.validation",
+                        """{"name":"","size":0,"uuid":"DefinitelyNotAUUID","choice":"X"}"""
+                    )
+                )
+            }
+            e.cause shouldNot beNull()
+            e.cause!!::class should be(DataClassMappingException::class)
+
+            val errors = (e.cause!! as DataClassMappingException).errors
             errors.size shouldBeEqual 4
             val mappedErrors = errors.associateBy { error -> error.path!!.names.joinToString(".") }
 
