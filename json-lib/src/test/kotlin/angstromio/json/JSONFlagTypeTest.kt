@@ -170,7 +170,7 @@ class JSONFlagTypeTest : FunSpec() {
                 flagType = jsonFlagType
             )
 
-            val e = assertThrows< ParsingException> {
+            val e = assertThrows<ParsingException> {
                 flags.parse(
                     arrayOf(
                         "-flag.with.validation",
