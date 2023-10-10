@@ -8,6 +8,7 @@ import arrow.integrations.jackson.module.registerArrowModule
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.DeserializationFeature
+import com.fasterxml.jackson.databind.InjectableValues
 import com.fasterxml.jackson.databind.JsonDeserializer
 import com.fasterxml.jackson.databind.JsonMappingException
 import com.fasterxml.jackson.databind.JsonNode
@@ -135,18 +136,63 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
             )
         }
 
-        test("injectable field should use null assumed default when field not sent in json") {
-            readValue<TestClasses.ClassInjectNullableString>("""{}""") should be(
-                TestClasses.ClassInjectNullableString(
-                    null
-                )
-            )
+        test("injectable field should fail for no default when field not sent in json") {
+            assertThrows<DataClassMappingException> {
+                readValue<TestClasses.ClassInjectNullableString>("""{}""")
+            }
         }
 
         test("injectable field should throw exception when no value is passed in the json") {
             assertThrows<DataClassMappingException> {
                 readValue<TestClasses.ClassInjectString>("""{}""")
             }
+        }
+
+        test("injectable field should use null when null field is passed a null in json") {
+            readValue<TestClasses.ClassInjectNullableString>("""{"string": null}""") should be(
+                TestClasses.ClassInjectNullableString(
+                    null
+                )
+            )
+        }
+
+        test("injectable field should use injected value when nullable field not sent in json") {
+            val injectableValues =
+                InjectableValues.Std()
+                    .addValue(String::class.java, null)
+            mapper
+                .reader(injectableValues)
+                .readValue("""{}""", TestClasses.ClassInjectNullableString::class.java) should be(
+                TestClasses.ClassInjectNullableString(
+                    null
+                )
+            )
+        }
+
+        test("injectable field should use injected value when nullable field not sent in json 1") {
+            val injectableValues =
+                InjectableValues.Std()
+                    .addValue(String::class.java, "Hello")
+            mapper
+                .reader(injectableValues)
+                .readValue("""{}""", TestClasses.ClassInjectNullableString::class.java) should be(
+                TestClasses.ClassInjectNullableString(
+                    "Hello"
+                )
+            )
+        }
+
+        test("injectable field should use passed value when nullable field is sent in json") {
+            val injectableValues =
+                InjectableValues.Std()
+                    .addValue(String::class.java, null)
+            mapper
+                .reader(injectableValues)
+                .readValue("""{"string": "Hello"}""", TestClasses.ClassInjectNullableString::class.java) should be(
+                TestClasses.ClassInjectNullableString(
+                    null
+                )
+            )
         }
 
         test("regular mapper handles unknown properties when json provides MORE fields than data class") {
@@ -665,9 +711,19 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         }
 
         test(
-            "simple tests#readValue json with missing 'age' field that is an Nullable without a default should succeed"
+            "simple tests#readValue json with missing 'age' field that is an Nullable without a default should not succeed"
         ) {
-            readValue<TestClasses.Person>("""{"id" : 1,"name" : "Steve","age_with_default" : 20,"nickname" : "bob"}""")
+            val e = assertThrows<DataClassMappingException> {
+                readValue<TestClasses.PersonNoDefaultAge>("""{"id" : 1,"name" : "Steve","age_with_default" : 20,"nickname" : "bob"}""")
+            }
+            e.errors.size shouldBeEqual 1
+            e.errors.first().message should be("age: field is required")
+        }
+
+        test(
+            "simple tests#readValue json with null 'age' field that is an Nullable without a default should succeed"
+        ) {
+            readValue<TestClasses.Person>("""{"id" : 1,"name" : "Steve", "age": null, "age_with_default" : 20,"nickname" : "bob"}""")
         }
 
         test("simple tests#readValue json into JsonNode") {
@@ -842,6 +898,7 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
                     "date_time2: '1' is not a valid LocalDateTime",
                     "date_time3: '' is not a valid LocalDateTime",
                     "date_time4: error parsing ''",
+                    "date_time5: field is required",
                     "date_time: 'today' is not a valid LocalDateTime"
                 )
             )
@@ -1389,13 +1446,21 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         test(
             "deserialization#jackson JsonDeserialize annotations deserializes json to data class with 2 decimal places for mandatory field"
         ) {
-            readValue<TestClasses.ClassWithCustomDecimalFormat>(""" {"my_big_decimal": 23.1201}""") should be(
+            readValue<TestClasses.ClassWithCustomDecimalFormat>("""{"my_big_decimal": 23.1201, "opt_my_big_decimal": null}""") should be(
                 TestClasses.ClassWithCustomDecimalFormat(BigDecimal(23.12, defaultBigDecimalMathContext), null)
             )
         }
 
+        test(
+            "deserialization#jackson JsonDeserialize annotations deserializes json to data class with 2 decimal places for mandatory field fails for not sent field"
+        ) {
+            assertThrows<DataClassMappingException> {
+                readValue<TestClasses.ClassWithCustomDecimalFormat>("""{"my_big_decimal": 23.1201}""")
+            }
+        }
+
         test("deserialization#jackson JsonDeserialize annotations long with JsonDeserialize") {
-            val result = readValue<TestClasses.ClassWithLongAndDeserializer>(""" {"long": 12345}""")
+            val result = readValue<TestClasses.ClassWithLongAndDeserializer>("""{"long": 12345}""")
             result should be(TestClasses.ClassWithLongAndDeserializer(12345L))
             result.long should be(12345L) // promotes the returned integer into a long
         }
@@ -1403,7 +1468,7 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
         test(
             "deserialization#jackson JsonDeserialize annotations deserializes json to data class with 2 decimal places for option field"
         ) {
-            readValue<TestClasses.ClassWithCustomDecimalFormat>(""" {"my_big_decimal": 23.1201,"opt_my_big_decimal": 23.1201}""") should be(
+            readValue<TestClasses.ClassWithCustomDecimalFormat>("""{"my_big_decimal": 23.1201,"opt_my_big_decimal": 23.1201}""") should be(
                 TestClasses.ClassWithCustomDecimalFormat(
                     BigDecimal(23.12, defaultBigDecimalMathContext), BigDecimal(23.12, defaultBigDecimalMathContext)
                 )
@@ -1806,8 +1871,9 @@ class ObjectMapperTest : AbstractObjectMapperTest() {
             val e = assertThrows<DataClassMappingException> {
                 readValue<TestClasses.WithNullableCarMake>("""{}""")
             }
-            e.errors.size should be(1)
+            e.errors.size should be(2)
             e.errors.first().message should be("non_null_car_make: field is required")
+            e.errors.last().message should be("nullable_car_make: field is required")
         }
 
         test("nullable deserializer - allow null values when default is provided") {

@@ -415,8 +415,8 @@ internal class DataClassDeserializer(
                             if (field.isOptional) {
                                 // do not include, optional nullable
                             } else {
-                                // include the null, required nullable
-                                constructorValues[field.parameter] = null
+                                // required
+                                throwRequiredFieldException(field)
                             }
                         } else if (field.isOptional) {
                             // no value and field is optional, do not include

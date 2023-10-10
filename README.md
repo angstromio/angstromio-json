@@ -12,5 +12,6 @@ A "fail-slow" JSON deserializer for Kotlin data classes.
   - https://github.com/FasterXML/jackson-module-kotlin/issues/199#issuecomment-1013810769
   - https://github.com/FasterXML/jackson-module-kotlin/issues/413
   - https://github.com/FasterXML/jackson-module-kotlin/issues/650
+- Some type of "Option/Optional" support to be able to specify that a value does not need to be present in the JSON (nor provided via an InjectableValue) without providing a default value for the field.
 - Some type 'WrappedValue' support (depends on https://github.com/Kotlin/KEEP/blob/master/notes/value-classes.md#value-interfaces) assuming the above is solved.
 

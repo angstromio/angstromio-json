@@ -25,6 +25,7 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming
 import com.fasterxml.jackson.databind.deser.std.NumberDeserializers
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer
 import com.fasterxml.jackson.databind.node.IntNode
+import com.fasterxml.jackson.databind.node.NullNode
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.databind.node.TreeTraversingParser
 import com.fasterxml.jackson.databind.node.ValueNode
@@ -41,6 +42,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.Temporal
 import java.util.*
+import kotlin.reflect.full.isSubclassOf
 import java.time.Duration as JavaDuration
 import kotlin.time.Duration as KotlinDuration
 
@@ -127,7 +129,7 @@ object TestClasses {
     data class Rectangle(@Min(0) val width: Int, @Min(0) val height: Int) : Shape
     data class Circle(@Min(0) val radius: Int) : Shape
     data class View(val shapes: List<Shape>)
-    data class NullableView(val shapes: List<Shape>, val optional: Shape?)
+    data class NullableView(val shapes: List<Shape>, val optional: Shape? = null)
 
     data class TestJsonCreator(val int: Int) {
         companion object {
@@ -301,7 +303,7 @@ object TestClasses {
     data class ClassWithZeroOrOne(val id: ZeroOrOne)
 
     data class DataClass(val id: Long, val name: String)
-    data class ClassIdAndNullable(val id: Long, val name: String?)
+    data class ClassIdAndNullable(val id: Long, val name: String? = null)
 
     @JsonIgnoreProperties(ignoreUnknown = false)
     data class StrictDataClassIdAndNullable(val id: Long, val name: String?)
@@ -328,7 +330,7 @@ object TestClasses {
         @Min(5) val number: Int
     )
 
-    data class Page<T : Any>(val data: List<T>, val pageSize: Int, val next: Long?, val previous: Long?)
+    data class Page<T : Any>(val data: List<T>, val pageSize: Int, val next: Long? = null, val previous: Long? = null)
 
     data class ClassWithGeneric<T : Any>(val inside: GenericTestClass<T>)
 
@@ -887,6 +889,16 @@ object TestClasses {
         val id: Int,
         @NotEmpty val name: String,
         val dob: LocalDate? = null,
+        val age: Int? = null,
+        @Suppress("PropertyName") val age_with_default: Int? = null,
+        val nickname: String = "unknown",
+        val address: Address? = null
+    )
+
+    data class PersonNoDefaultAge(
+        val id: Int,
+        @NotEmpty val name: String,
+        val dob: LocalDate? = null,
         val age: Int?,
         @Suppress("PropertyName") val age_with_default: Int? = null,
         val nickname: String = "unknown",
@@ -894,9 +906,12 @@ object TestClasses {
     )
 
     class MyBigDecimalDeserializer : StdDeserializer<BigDecimal>(BigDecimal::class.java) {
-        override fun deserialize(jp: JsonParser, ctxt: DeserializationContext): BigDecimal {
+        override fun deserialize(jp: JsonParser, ctxt: DeserializationContext): BigDecimal? {
             val jsonNode: ValueNode = jp.codec.readTree(jp)
-            return BigDecimal(jsonNode.asText()).setScale(2, RoundingMode.HALF_UP)
+            return when (jsonNode) {
+                is NullNode -> null
+                else -> BigDecimal(jsonNode.asText()).setScale(2, RoundingMode.HALF_UP)
+            }
         }
 
         @Deprecated("Deprecated in Java", ReplaceWith(""))

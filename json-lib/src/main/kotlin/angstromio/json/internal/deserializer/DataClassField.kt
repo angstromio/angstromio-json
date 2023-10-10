@@ -84,16 +84,21 @@ internal class DataClassField(
         codec: ObjectCodec,
         objectJsonNode: JsonNode
     ): Any? {
-        val injectableValuesOpt: InjectableValues? = DeserializationContextAccessor(context).injectableValues()
+        val injectableValues: InjectableValues? = DeserializationContextAccessor(context).injectableValues()
         val forProperty: DataClassBeanProperty = beanProperty(context)
 
         return when {
-            injectableValuesOpt != null -> {
-                context.findInjectableValue(
-                    /* valueId = */ forProperty.valueObj?.id,
-                    /* forProperty = */ forProperty.property,
-                    /* beanInstance = */ null
-                ) ?: findValue(context, codec, objectJsonNode, forProperty.property)
+            injectableValues != null -> {
+                try {
+                    val injectableValue = context.findInjectableValue(
+                        /* valueId = */ forProperty.valueObj?.id,
+                        /* forProperty = */ forProperty.property,
+                        /* beanInstance = */ null
+                    )
+                    injectableValue ?: Types.Null // if a null is explicitly emitted as the injectable value, convert to a Types.Null
+                } catch (e: IllegalArgumentException) {
+                    findValue(context, codec, objectJsonNode, forProperty.property)
+                }
             }
 
             else ->
@@ -119,7 +124,7 @@ internal class DataClassField(
                     // active view is in the list of views from the annotation
                     parse(context, codec, objectJsonNode, beanProperty)
                 } else {
-                    getNullable(explicitNull = !objectJsonNode::class.isSubclassOf(NullNode::class))
+                    getNullable(explicitNull = objectJsonNode::class.isSubclassOf(NullNode::class))
                 }
 
             else -> {
@@ -163,7 +168,7 @@ internal class DataClassField(
                     parseFieldValue(context, codec, fieldJsonNode, forProperty, null)
                 }
             }
-        } else getNullable(explicitNull = !objectJsonNode::class.isSubclassOf(NullNode::class))
+        } else getNullable(explicitNull = fieldJsonNode != null)
     }
 
     private fun resolveWithDeserializerAnnotation(
