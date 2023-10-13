@@ -22,7 +22,7 @@ plugins {
 
 description = 'A "fail-slow" JSON deserializer for Kotlin data classes.'
 group 'io.angstrom'
-version '0.0.1-SNAPSHOT'
+version project['io.angstrom.version']
 
 // Apply a specific Java toolchain to ease working on different environments.
 // Can set a toolchain via the java extension, and Kotlin compilation tasks will use it,
@@ -88,10 +88,10 @@ dependencies {
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.15+'
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15+'
     implementation 'io.arrow-kt:arrow-core:1.2.0'
-    implementation 'io.angstrom:angstromio-util:0.0.1-SNAPSHOT'
-    implementation 'io.angstrom:angstromio-validator-constraints:0.0.1-SNAPSHOT'
-    implementation 'io.angstrom:angstromio-validator:0.0.1-SNAPSHOT'
-    implementation 'io.angstrom:angstromio-flags:0.0.1-SNAPSHOT'
+    implementation "io.angstrom:angstromio-util:${project['io.angstrom.version']}"
+    implementation "io.angstrom:angstromio-validator-constraints:${project['io.angstrom.version']}"
+    implementation "io.angstrom:angstromio-validator:${project['io.angstrom.version']}"
+    implementation "io.angstrom:angstromio-flags:${project['io.angstrom.version']}"
     implementation 'jakarta.validation:jakarta.validation-api:3.0.2'
 
     // Use Kotest Kotlin testing integration.
