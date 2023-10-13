@@ -14,22 +14,22 @@ rootProject.name = 'angstromio-json'
 include 'json-lib'
 
 // For Local
-if (file('../angstromio-util').exists() && !hasProperty('publishing')) {
+if (file('../angstromio-util').exists() && !hasProperty('publish')) {
     includeBuild('../angstromio-util') {
         dependencySubstitution {
             substitute module('io.angstrom:angstromio-util') using project(':util-lib')
         }
     }
 }
-if (file('../angstromio-validator').exists() && !hasProperty('publishing')) {
+if (file('../angstromio-validator').exists() && !hasProperty('publish')) {
     includeBuild('../angstromio-validator') {
         dependencySubstitution {
-            substitute module('io.angstrom:angstromio-constraints') using project(':constraints-lib')
+            substitute module('io.angstrom:angstromio-validator-constraints') using project(':validator-constraints-lib')
             substitute module('io.angstrom:angstromio-validator') using project(':validator-lib')
         }
     }
 }
-if (file('../angstromio-flags').exists() && !hasProperty('publishing')) {
+if (file('../angstromio-flags').exists() && !hasProperty('publish')) {
     includeBuild('../angstromio-flags') {
         dependencySubstitution {
             substitute module('io.angstrom:angstromio-flags') using project(':flags-lib')
@@ -37,22 +37,22 @@ if (file('../angstromio-flags').exists() && !hasProperty('publishing')) {
     }
 }
 // for GitHub Actions
-if (file('angstromio-util').exists() && !hasProperty('publishing')) {
+if (file('angstromio-util').exists() && !hasProperty('publish')) {
     includeBuild('angstromio-util') {
         dependencySubstitution {
             substitute module('io.angstrom:angstromio-util') using project(':util-lib')
         }
     }
 }
-if (file('angstromio-validator').exists() && !hasProperty('publishing')) {
+if (file('angstromio-validator').exists() && !hasProperty('publish')) {
     includeBuild('angstromio-validator') {
         dependencySubstitution {
-            substitute module('io.angstrom:angstromio-constraints') using project(':constraints-lib')
+            substitute module('io.angstrom:angstromio-validator-constraints') using project(':validator-constraints-lib')
             substitute module('io.angstrom:angstromio-validator') using project(':validator-lib')
         }
     }
 }
-if (file('angstromio-flags').exists() && !hasProperty('publishing')) {
+if (file('angstromio-flags').exists() && !hasProperty('publish')) {
     includeBuild('angstromio-flags') {
         dependencySubstitution {
             substitute module('io.angstrom:angstromio-flags') using project(':flags-lib')

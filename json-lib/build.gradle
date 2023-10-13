@@ -9,7 +9,7 @@ import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 
 plugins {
     // Apply the org.jetbrains.kotlin.jvm Plugin to add support for Kotlin.
-    id 'org.jetbrains.kotlin.jvm' version '1.9.0'
+    id 'org.jetbrains.kotlin.jvm' version '1.9.10'
 
     // Apply the java-library plugin for API and implementation separation.
     id 'java-library'
@@ -20,7 +20,7 @@ plugins {
     id 'signing'
 }
 
-description 'A "fail-slow" JSON deserializer for Kotlin data classes.'
+description = 'A "fail-slow" JSON deserializer for Kotlin data classes.'
 group 'io.angstrom'
 version '0.0.1-SNAPSHOT'
 
@@ -32,6 +32,12 @@ java {
     }
     withJavadocJar()
     withSourcesJar()
+}
+
+javadoc {
+    if(JavaVersion.current().isJava9Compatible()) {
+        options.addBooleanOption('html5', true)
+    }
 }
 
 tasks.named('test') {
@@ -67,7 +73,10 @@ tasks.named('jar') {
 }
 
 repositories {
-    mavenLocal()
+    maven {
+        name = 'Sonatype Snapshot Releases'
+        url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/")
+    }
     // Use Maven Central for resolving dependencies.
     mavenCentral()
 }
@@ -80,7 +89,7 @@ dependencies {
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15+'
     implementation 'io.arrow-kt:arrow-core:1.2.0'
     implementation 'io.angstrom:angstromio-util:0.0.1-SNAPSHOT'
-    implementation 'io.angstrom:angstromio-constraints:0.0.1-SNAPSHOT'
+    implementation 'io.angstrom:angstromio-validator-constraints:0.0.1-SNAPSHOT'
     implementation 'io.angstrom:angstromio-validator:0.0.1-SNAPSHOT'
     implementation 'io.angstrom:angstromio-flags:0.0.1-SNAPSHOT'
     implementation 'jakarta.validation:jakarta.validation-api:3.0.2'
@@ -133,18 +142,21 @@ publishing {
             }
         }
     }
+
     repositories {
-        mavenCentral()
+        maven {
+            name='Sonatype'
+            credentials(PasswordCredentials)
+            def releasesRepoUrl = uri("https://s01.oss.sonatype.org/service/local/")
+            def snapshotsRepoUrl = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/")
+            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+        }
     }
 }
 
 signing {
-    // sign publishing.publications.mavenJava
-}
-
-
-javadoc {
-    if(JavaVersion.current().isJava9Compatible()) {
-        options.addBooleanOption('html5', true)
-    }
+    def signingKey = findProperty("signingKey") as String
+    def signingPassword = findProperty("signingPassword") as String
+    useInMemoryPgpKeys(signingKey, signingPassword)
+    sign publishing.publications.mavenJava
 }
