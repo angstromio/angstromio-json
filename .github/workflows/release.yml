@@ -37,28 +37,28 @@ jobs:
       - name: Get Release Version
         id: get_release_version
         run: |
-          sed -r -e "s/io\.angstrom\.version=([^-]*)-SNAPSHOT/\1/" gradle.properties
+          echo "release_version=$(sed -r -e "s/io\.angstrom\.version=([^-]*)-SNAPSHOT/\1/" gradle.properties)" >> "$GITHUB_ENV"
       
       - name: Checkout angstromio/angstromio-util
         uses: actions/checkout@v3
         with:
           repository: angstromio/angstromio-util
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: "v${{ steps.get_release_version.outputs.version }}"
+          ref: "v${{ env.release_version }}"
           path: ${{ github.workspace }}/angstromio-util
       - name: Checkout angstromio/angstromio-validator
         uses: actions/checkout@v3
         with:
           repository: angstromio/angstromio-validator
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: "v${{ steps.get_release_version.outputs.version }}"
+          ref: "v${{ env.release_version }}"
           path: ${{ github.workspace }}/angstromio-validator
       - name: Checkout angstromio/angstromio-flags
         uses: actions/checkout@v3
         with:
           repository: angstromio/angstromio-flags
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: "v${{ steps.get_release_version.outputs.version }}"
+          ref: "v${{ env.release_version }}"
           path: ${{ github.workspace }}/angstromio-flags
       
       - name: Import GPG
@@ -74,8 +74,8 @@ jobs:
 
       - name: Update Release Version
         run: |
-          echo "io.angstrom.version=${{ steps.get_release_version.outputs.version }}" > gradle.properties
-          git commit -am "[Angstromio Release] - pre tag commit: '${{ steps.get_release_version.outputs.version }}'"
+          echo "io.angstrom.version=${{ env.release_version }}" > gradle.properties
+          git commit -am "[Angstromio Release] - pre tag commit: '${{ env.release_version }}'"
           git push origin main
 
       - name: Create Release Branch
@@ -89,7 +89,7 @@ jobs:
 
       - name: Create Git Tag
         run: |
-          git tag "v${{ steps.get_release_version.outputs.version }}" -a -m "Release v${{ steps.get_release_version.outputs.version }}"
+          git tag "v${{ env.release_version }}" -a -m "Release v${{ env.release_version }}"
           git push origin --tags
 
       - name: Generate API ACCESS Token
@@ -103,7 +103,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
         run: |
-          gh release create "v${{ steps.get_release_version.outputs.version }}" --notes-from-tag --title "Release v${{ steps.get_release_version.outputs.version }}"
+          gh release create "v${{ env.release_version }}" --notes-from-tag --title "Release v${{ env.release_version }}"
 
       - name: Update to Next Release Version
         run: |
